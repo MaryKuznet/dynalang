@@ -9,7 +9,7 @@ keywords = ["environment", "agent", "rl", "language"]
 [tool.poetry.dependencies]
 python = "^3.8"
 numpy = "*"
-"ruamel.yaml" = "*"
+"ruamel.yaml" = "0.16.10"
 gym = { version = "0.26" }
 jax = { version = "0.4.*" }
 jaxlib = { version = "0.4.*" }
