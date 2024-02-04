@@ -262,6 +262,7 @@ def make_env(config, **overrides):
     'gym': 'embodied.envs.from_gym:FromGym',
     'dm': 'embodied.envs.from_dmenv:FromDM',
     'crafter': 'embodied.envs.crafter:Crafter',
+    'textcrafter': 'embodied.envs.text_crafter:PatchedCrafterEnv',
     'dmc': 'embodied.envs.dmc:DMC',
     'atari': 'embodied.envs.atari:Atari',
     'atari100k': 'embodied.envs.atari:Atari',

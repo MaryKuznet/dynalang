@@ -10,7 +10,7 @@
 #   sh scripts/run_messenger_s1.sh EXP_NAME GPU_IDS SEED
 
 # System
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=America/San_Francisco
 ENV PYTHONUNBUFFERED 1
@@ -36,16 +36,23 @@ RUN conda create -n dynalang python=3.8
 # Automatically use the conda env for any RUN commands
 SHELL ["conda", "run", "-n", "dynalang", "/bin/bash", "-c"]
 
-RUN pip3 install jax[cuda11_cudnn82] -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+RUN pip3 install jax[cuda11_pip] -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ENV XLA_PYTHON_CLIENT_MEM_FRACTION 0.8
 
 # HomeGrid
+# COPY homegrid /homegrid
+# RUN cd /homegrid; pip install -e .
 RUN pip install homegrid
 
 # Messenger: Change `messenger-emma` to your local messenger-emma repo path (must be in the Docker build context).
-COPY messenger-emma /messenger-emma
-RUN pip install vgdl@git+https://github.com/ahjwang/py-vgdl
-RUN cd /messenger-emma; pip install -e .
+# COPY messenger-emma /messenger-emma
+# RUN pip install vgdl@git+https://github.com/ahjwang/py-vgdl
+# RUN cd /messenger-emma; pip install -e .
+
+# Crafter
+RUN pip install crafter
+RUN pip install gymnasium
+
 
 # Uncomment if running VLN
 # COPY dynalang/env_vln.yml /environment.yml
