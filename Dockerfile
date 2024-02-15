@@ -54,11 +54,12 @@ RUN pip install crafter
 RUN pip install gymnasium
 
 
-# Uncomment if running VLN
+## Uncomment if running VLN
 # COPY dynalang/env_vln.yml /environment.yml
-# RUN pip install "jax[cuda11_pip]==0.4.8" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-# RUN pip install torch torchvision
-# RUN conda env update -f env_vln.yml
+## RUN pip install "jax[cuda11_pip]==0.4.8" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+## RUN pip install torch torchvision
+# RUN conda env update -f environment.yml 
+# --prune
 # RUN conda install -c aihabitat -c conda-forge habitat-sim=0.1.7 headless
 
 # Google Cloud DNS cache (optional)

@@ -49,6 +49,7 @@ def main(argv=None):
     if args.script == 'train':
       replay = make_replay(config, logdir / 'episodes')
       env = wrapped_env(config, batch=True)
+      # env.repeat_task_every = 1
       cleanup.append(env)
       agent = agt.Agent(env.obs_space, env.act_space, step, config)
       embodied.run.train(agent, env, replay, logger, args)
