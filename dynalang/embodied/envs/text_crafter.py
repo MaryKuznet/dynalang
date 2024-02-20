@@ -51,8 +51,13 @@ class PatchedCrafterEnv(embodied.Env):
         ]
 
         directory = pathlib.Path(__file__).resolve().parent
-        with open(directory / "crafter_embed.pkl", "rb") as f:
-            self.cache, self.embed_cache = pickle.load(f)
+        if custom_task == 'dataset':
+            with open(directory / "dataset_embeds.pkl", "rb") as f:
+                self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+        else:
+            with open(directory / "crafter_embed.pkl", "rb") as f:
+                self.cache, self.embed_cache = pickle.load(f)
+
         self.empty_token = self.cache["<pad>"]
         self.tokens = [self.empty_token]
         self.cur_token = 0
@@ -127,22 +132,7 @@ class PatchedCrafterEnv(embodied.Env):
 
         # Code to handle additional reward for the current achievement task
         if self._current_achievement_task:
-            if isinstance(self._current_achievement_task, str):
-                cur_achievement_count = info['achievements'].get(self._current_achievement_task, 0)
-
-                if cur_achievement_count > self._previous_achievement_count:
-                    reward += self._subtask_extra_reward
-                    self._previous_achievement_count = cur_achievement_count
-
-                    self._current_achievement_tasks.pop(0)
-                    if len(self._current_achievement_tasks) > 0:
-                        self._current_achievement_task = self._current_achievement_tasks[0]
-                        self._get_and_set_task_embed()
-                        self.cur_token = -1
-                        self._previous_achievement_count = 0
-                    else:
-                        terminated = True
-            else:
+            if self.custom_task == 'data':
                 for achievement in self._current_achievement_task:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
@@ -157,6 +147,35 @@ class PatchedCrafterEnv(embodied.Env):
                         else:
                             terminated = True
                         break
+
+            elif  self.custom_task == 'dataset':
+                for achievement in self._current_achievement_tasks:
+                    cur_achievement_count = info['achievements'].get(achievement, 0)
+
+                    if cur_achievement_count > self._previous_achievement_count[achievement]:
+                        reward += self._subtask_extra_reward
+                        self._previous_achievement_count[achievement] = cur_achievement_count
+
+                        self._current_achievement_tasks.remove(achievement)
+                        if len(self._current_achievement_tasks) == 0:
+                            terminated = True
+                        break
+
+            else:
+                cur_achievement_count = info['achievements'].get(self._current_achievement_task, 0)
+
+                if cur_achievement_count > self._previous_achievement_count:
+                    reward += self._subtask_extra_reward
+                    self._previous_achievement_count = cur_achievement_count
+
+                    self._current_achievement_tasks.pop(0)
+                    if len(self._current_achievement_tasks) > 0:
+                        self._current_achievement_task = self._current_achievement_tasks[0]
+                        self._get_and_set_task_embed()
+                        self.cur_token = -1
+                        self._previous_achievement_count = 0
+                    else:
+                        terminated = True
 
 
         info['episode_extra_stats'] = info.get('episode_extra_stats', {})
@@ -177,7 +196,7 @@ class PatchedCrafterEnv(embodied.Env):
 
         done = terminated or truncated
 
-        #print(self._step, self.string, self.tokens[self.cur_token], reward)
+        # print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks, reward)
 
         return augmented_obs, reward, done, info
 
@@ -188,19 +207,30 @@ class PatchedCrafterEnv(embodied.Env):
 
     def _update_episode_stats(self, info, key='episode_extra_stats'):
         if self._current_achievement_task:
-            if isinstance(self._current_achievement_task, str):
-                key_name = f'Task_achievements/{self._current_achievement_task}'
-                info[key][key_name] = self._previous_achievement_count
-                info[key]['TaskScore'] = self._previous_achievement_count
-                if self._previous_achievement_count:
-                    info[key]['TaskStepsToSuccess'] = self._step
-            else:
+
+            if self.custom_task == 'data':
                 for achievement in set(self._current_achievement_tasks):
                     key_name = f'Task_achievements/{achievement}'
                     info[key][key_name] = self._previous_achievement_count[achievement]
                 sum_previous_achievement_count = sum(self._previous_achievement_count.values())
                 info[key]['TaskScore'] = sum_previous_achievement_count
                 if sum_previous_achievement_count:
+                    info[key]['TaskStepsToSuccess'] = self._step
+
+            elif self.custom_task == 'dataset':
+                for achievement in set(self.simple_task[self._current_achievement_task]):
+                    key_name = f'Task_achievements/{achievement}'
+                    info[key][key_name] = self._previous_achievement_count[achievement]
+                sum_previous_achievement_count = sum(self._previous_achievement_count.values())
+                info[key]['TaskScore'] = sum_previous_achievement_count
+                if sum_previous_achievement_count:
+                    info[key]['TaskStepsToSuccess'] = self._step
+
+            else:
+                key_name = f'Task_achievements/{self._current_achievement_task}'
+                info[key][key_name] = self._previous_achievement_count
+                info[key]['TaskScore'] = self._previous_achievement_count
+                if self._previous_achievement_count:
                     info[key]['TaskStepsToSuccess'] = self._step
         else:
             achievements = {'Achievements/' + ach: 100.0 if val > 0.0 else 0.0 for ach, val in
@@ -212,7 +242,7 @@ class PatchedCrafterEnv(embodied.Env):
     def reset(self, *args, **kwargs):
         if self.custom_task is None:
             number_tasks = random.choice(range(6))
-        elif self.custom_task != 'data':
+        elif self.custom_task != 'data' and self.custom_task != 'dataset':
             number_tasks = int(self.custom_task)
         
         if self.custom_task == 'data':
@@ -222,6 +252,15 @@ class PatchedCrafterEnv(embodied.Env):
             self._previous_achievement_count = {}
             for task in set(self._current_achievement_tasks):
                 self._previous_achievement_count[task] = 0
+        
+        elif self.custom_task == 'dataset':
+            tasks = list(self.simple_task.keys())
+            self._current_achievement_task = random.choice(tasks)
+            self._current_achievement_tasks = self.simple_task[self._current_achievement_task]
+            self._previous_achievement_count = {}
+            for task in set(self._current_achievement_tasks):
+                self._previous_achievement_count[task] = 0
+
         else:
             tasks = ['collect_coal', 'collect_drink', 'collect_iron', 'collect_sapling', 'collect_stone',
                         'collect_wood', 'defeat_skeleton', 'defeat_zombie', 'eat_cow', 'make_iron_pickaxe',
