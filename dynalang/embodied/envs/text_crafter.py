@@ -14,6 +14,10 @@ from gym import spaces
 import embodied
 from . import from_gym
 
+from PIL import Image
+from PIL import ImageFont
+from PIL import ImageDraw
+
 
 class PatchedCrafterEnv(embodied.Env):
     achievements_list = [
@@ -23,7 +27,7 @@ class PatchedCrafterEnv(embodied.Env):
         'place_furnace', 'place_plant', 'place_stone', 'place_table', 'wake_up',
     ]
 
-    def __init__(self, custom_task=None, recorder_dir=None):
+    def __init__(self, custom_task=None, recorder_dir=None, vis=False):
         self._env = CrafterEnv()
         if recorder_dir:
             # VideoRecorder should be fixed, to work with this patched environment
@@ -40,40 +44,59 @@ class PatchedCrafterEnv(embodied.Env):
 
         self._current_achievement_tasks = None
 
-        if custom_task == 'random':
-            self.custom_task = None
-        else:
-            self.custom_task = custom_task
-
         self.wrappers = [
           from_gym.FromGym,
           lambda e: embodied.wrappers.ResizeImage(e, self._size),
         ]
 
+        # Adding embeddings
+
+        self.custom_task = custom_task
+
         directory = pathlib.Path(__file__).resolve().parent
-        if custom_task == 'dataset':
+        if custom_task == 'dataset_train' or custom_task == 'data_train':
             with open(directory / "dataset_embeds.pkl", "rb") as f:
                 self.cache, self.embed_cache, self.simple_task = pickle.load(f)
-        else:
+                # print('train')
+
+        elif custom_task == 'dataset_test' or custom_task == 'data_test':
+            with open(directory / "dataset_embeds_test.pkl", "rb") as f:
+                self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+                # print('test')
+
+        if custom_task != 'dataset_train' and custom_task != 'dataset_test':
             with open(directory / "crafter_embed.pkl", "rb") as f:
                 self.cache, self.embed_cache = pickle.load(f)
+                # print('not_data')
+        
+        if custom_task[:4] == 'data':
+            self.custom_task = list(custom_task.split('_'))[0]
+            # print(self.custom_task)
 
         self.empty_token = self.cache["<pad>"]
         self.tokens = [self.empty_token]
         self.cur_token = 0
         self.embed_size = 512
 
-        if custom_task == 'data':
-            with open(directory / "crafter_dataset.pkl", "rb") as f:
-                self.data = pickle.load(f)
+        # For testing mode
+        self.vis = vis
+        self.prev_action = None
 
 
     def render(self):
         self._env.render()
+    
+    def render_with_text(self, text):
+        img = self._env.render()
+        img = Image.fromarray(img)
+        draw = ImageDraw.Draw(img)
+        draw.text((0, 0), text, (0, 0, 0))
+        draw.text((0, 45), "Action: {}".format(self.prev_action), (0, 0, 0))
+        img = np.asarray(img)
+        return img
 
     @property
     def observation_space(self):
-        #task_vector_space = gymnasium.spaces.Box(low=0, high=1, shape=(self._task_vector_size,), dtype=np.float32)
 
         image = spaces.Box(low=0, high=1, shape=self._size)
         log_language_info = spaces.Text(max_length=10000)
@@ -81,13 +104,22 @@ class PatchedCrafterEnv(embodied.Env):
         token_embed = spaces.Box(-np.inf, np.inf, shape=(self.embed_size,), dtype=np.float32)
         is_read_step = spaces.Box(low=np.array(False), high=np.array(True), shape=(), dtype=bool)
 
-        return spaces.Dict({
+        obs_space = spaces.Dict({
             'image': image,
             'log_language_info': log_language_info,
             'token': token,
             'token_embed': token_embed,
             "is_read_step": is_read_step,
         })
+        
+        if self.vis:
+            obs_space["log_image"] = spaces.Box(
+                low=0,
+                high=255,
+                shape=(100 * self._size[0], 100 * self._size[1], 3),
+            )
+
+        return obs_space
 
     @property
     def action_space(self):
@@ -196,7 +228,12 @@ class PatchedCrafterEnv(embodied.Env):
 
         done = terminated or truncated
 
-        # print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks, reward)
+        # if reward >= 0.7:
+        #     print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks, reward)
+
+        if self.vis:
+            self.prev_action = self._env.action_names[action]
+            augmented_obs["log_image"] = self.render_with_text(augmented_obs["log_language_info"])
 
         return augmented_obs, reward, done, info
 
@@ -240,13 +277,14 @@ class PatchedCrafterEnv(embodied.Env):
             info[key]['Score'] = self._compute_scores(np.array(list(achievements.values())))
 
     def reset(self, *args, **kwargs):
-        if self.custom_task is None:
+
+        if self.custom_task == 'random':
             number_tasks = random.choice(range(6))
         elif self.custom_task != 'data' and self.custom_task != 'dataset':
             number_tasks = int(self.custom_task)
         
         if self.custom_task == 'data':
-            tasks = self.data
+            tasks = list(self.simple_task.values())
             self._current_achievement_tasks = random.choice(tasks)
             self._current_achievement_task = self._current_achievement_tasks
             self._previous_achievement_count = {}
@@ -285,4 +323,10 @@ class PatchedCrafterEnv(embodied.Env):
             'token_embed': self.token_embeds[self.cur_token],
             "is_read_step": False
         }
+        #print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks)
+
+        if self.vis:
+            self.prev_action = ""
+            augmented_obs["log_image"] = self.render_with_text(augmented_obs["log_language_info"])
+
         return augmented_obs

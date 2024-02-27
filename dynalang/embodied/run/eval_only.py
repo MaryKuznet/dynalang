@@ -90,6 +90,7 @@ def eval_only(agent, env, logger, args):
 
   checkpoint = embodied.Checkpoint()
   checkpoint.agent = agent
+  assert args.from_checkpoint, f'{args.from_checkpoint}\n{args}'
   checkpoint.load(args.from_checkpoint, keys=['agent'])
 
   print('Start evaluation loop.')
