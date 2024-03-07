@@ -57,11 +57,15 @@ class PatchedCrafterEnv(embodied.Env):
         if custom_task == 'dataset_train' or custom_task == 'data_train':
             with open(directory / "dataset_embeds.pkl", "rb") as f:
                 self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+                self.mode = 'train'
                 # print('train')
 
         elif custom_task == 'dataset_test' or custom_task == 'data_test':
             with open(directory / "dataset_embeds_test.pkl", "rb") as f:
                 self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+                self.id_task = 0
+                self.mode = 'test'
+                self.test_info = dict()
                 # print('test')
 
         if custom_task != 'dataset_train' and custom_task != 'dataset_test':
@@ -81,6 +85,9 @@ class PatchedCrafterEnv(embodied.Env):
         # For testing mode
         self.vis = vis
         self.prev_action = None
+
+        # Add metrics
+        self._achievements = crafter.constants.achievements.copy()
 
 
     def render(self):
@@ -118,6 +125,15 @@ class PatchedCrafterEnv(embodied.Env):
                 high=255,
                 shape=(100 * self._size[0], 100 * self._size[1], 3),
             )
+
+        # Add metrics
+        
+        for k in self._achievements:
+            obs_space[f'log_achievement_{k}'] = spaces.Box(-1, 100, shape=(), dtype=np.uint32)
+
+        obs_space['log_achievement_TaskScore'] = spaces.Box(-1, 100, shape=(), dtype=np.uint32)
+        obs_space['log_achievement_TaskStepsToSuccess'] = spaces.Box(-1, 1000, shape=(), dtype=np.uint32)
+        obs_space['log_achievement_SuccessRate'] = spaces.Box(0, 1, shape=(), dtype=np.uint32)
 
         return obs_space
 
@@ -209,11 +225,6 @@ class PatchedCrafterEnv(embodied.Env):
                     else:
                         terminated = True
 
-
-        info['episode_extra_stats'] = info.get('episode_extra_stats', {})
-        if terminated or truncated:
-            self._update_episode_stats(info)
-
         self.cur_token += 1
         if self.cur_token >= len(self.tokens):
             self.cur_token = 0
@@ -227,6 +238,38 @@ class PatchedCrafterEnv(embodied.Env):
         }
 
         done = terminated or truncated
+
+        info['episode_extra_stats'] = info.get('episode_extra_stats', {})
+        if done:
+            self._update_episode_stats(info)
+
+        # Add metrics
+            # for k in self._achievements:
+            #     augmented_obs[f'log_achievement_{k}'] = info['episode_extra_stats'].get(f'Task_achievements/{k}', -1)
+            
+            # augmented_obs['log_achievement_TaskScore'] = info['episode_extra_stats']['TaskScore'] 
+            # augmented_obs['log_achievement_TaskStepsToSuccess'] = info['episode_extra_stats'].get('TaskStepsToSuccess', -1)
+
+            for key, value in info['episode_extra_stats'].items():
+                augmented_obs[key] = value
+            
+            if self.mode == 'test':
+                self.test_info[augmented_obs['log_language_info']] = (augmented_obs['log_achievement_TaskStepsToSuccess'], 
+                                                                      augmented_obs['log_achievement_SuccessRate'])
+                if self.id_task == len(self.simple_task):
+                    with open('my_dict.pkl', 'wb') as f:
+                        pickle.dump(self.test_info, f)
+                        exit()
+            # print(augmented_obs)
+
+        # else:
+        #     for k in self._achievements:
+        #         augmented_obs[f'log_achievement_{k}'] = -1
+
+        #     augmented_obs['log_achievement_TaskScore'] = -1 
+        #     augmented_obs['log_achievement_TaskStepsToSuccess'] = -1
+
+        # End add metrics
 
         # if reward >= 0.7:
         #     print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks, reward)
@@ -247,28 +290,37 @@ class PatchedCrafterEnv(embodied.Env):
 
             if self.custom_task == 'data':
                 for achievement in set(self._current_achievement_tasks):
-                    key_name = f'Task_achievements/{achievement}'
+                    key_name = f'log_achievement_{achievement}'
                     info[key][key_name] = self._previous_achievement_count[achievement]
                 sum_previous_achievement_count = sum(self._previous_achievement_count.values())
-                info[key]['TaskScore'] = sum_previous_achievement_count
+                info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
                 if sum_previous_achievement_count:
-                    info[key]['TaskStepsToSuccess'] = self._step
+                    info[key]['log_achievement_TaskStepsToSuccess'] = self._step
+                if len(self._current_achievement_task) == 0:
+                    info[key]['log_achievement_SuccessRate'] = 1
+                else:
+                    info[key]['log_achievement_SuccessRate'] = 0
 
             elif self.custom_task == 'dataset':
+                # print(self.simple_task[self._current_achievement_task])
                 for achievement in set(self.simple_task[self._current_achievement_task]):
-                    key_name = f'Task_achievements/{achievement}'
+                    key_name = f'log_achievement_{achievement}'
                     info[key][key_name] = self._previous_achievement_count[achievement]
                 sum_previous_achievement_count = sum(self._previous_achievement_count.values())
-                info[key]['TaskScore'] = sum_previous_achievement_count
+                info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
                 if sum_previous_achievement_count:
-                    info[key]['TaskStepsToSuccess'] = self._step
+                    info[key]['log_achievement_TaskStepsToSuccess'] = self._step
+                if len(self._current_achievement_tasks) == 0:
+                    info[key]['log_achievement_SuccessRate'] = 1
+                else:
+                    info[key]['log_achievement_SuccessRate'] = 0
 
             else:
-                key_name = f'Task_achievements/{self._current_achievement_task}'
+                key_name = f'log_achievement_{self._current_achievement_task}'
                 info[key][key_name] = self._previous_achievement_count
-                info[key]['TaskScore'] = self._previous_achievement_count
+                info[key]['log_achievement_TaskScore'] = self._previous_achievement_count
                 if self._previous_achievement_count:
-                    info[key]['TaskStepsToSuccess'] = self._step
+                    info[key]['log_achievement_TaskStepsToSuccess'] = self._step
         else:
             achievements = {'Achievements/' + ach: 100.0 if val > 0.0 else 0.0 for ach, val in
                             info['achievements'].items()}
@@ -285,16 +337,26 @@ class PatchedCrafterEnv(embodied.Env):
         
         if self.custom_task == 'data':
             tasks = list(self.simple_task.values())
-            self._current_achievement_tasks = random.choice(tasks)
-            self._current_achievement_task = self._current_achievement_tasks
+
+            if self.mode == 'train':
+                self._current_achievement_tasks = random.choice(tasks)
+            else:
+                self._current_achievement_task = tasks[self.id_task]
+            self._current_achievement_task = self._current_achievement_tasks.copy() 
             self._previous_achievement_count = {}
             for task in set(self._current_achievement_tasks):
                 self._previous_achievement_count[task] = 0
         
         elif self.custom_task == 'dataset':
             tasks = list(self.simple_task.keys())
-            self._current_achievement_task = random.choice(tasks)
-            self._current_achievement_tasks = self.simple_task[self._current_achievement_task]
+
+            if self.mode == 'train':
+                self._current_achievement_task = random.choice(tasks)
+            else:
+                self._current_achievement_task = tasks[self.id_task]
+                self.id_task += 1
+
+            self._current_achievement_tasks = self.simple_task[self._current_achievement_task].copy()
             self._previous_achievement_count = {}
             for task in set(self._current_achievement_tasks):
                 self._previous_achievement_count[task] = 0
@@ -323,10 +385,18 @@ class PatchedCrafterEnv(embodied.Env):
             'token_embed': self.token_embeds[self.cur_token],
             "is_read_step": False
         }
-        #print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks)
+        # print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks)
 
         if self.vis:
             self.prev_action = ""
             augmented_obs["log_image"] = self.render_with_text(augmented_obs["log_language_info"])
+
+        # Add metrics
+
+        # for k in self._achievements:
+        #     augmented_obs[f'log_achievement_{k}'] = -1
+
+        # augmented_obs['log_achievement_TaskScore'] = -1
+        # augmented_obs['log_achievement_TaskStepsToSuccess'] = -1
 
         return augmented_obs

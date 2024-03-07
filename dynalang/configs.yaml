@@ -36,8 +36,8 @@ defaults:
     script: train
     steps: 1e10
     expl_until: 0
-    log_every: 300
-    save_every: 900
+    log_every: 100
+    save_every: 400
     eval_every: 1e6
     eval_initial: True
     eval_eps: 1
@@ -227,6 +227,16 @@ atari100k:
 crafter:
 
   task: crafter_reward
+  envs.amount: 1
+  run:
+    log_keys_max: '^log_achievement_.*'
+    log_keys_sum: '^log_reward$'
+  run.train_ratio: 512
+  encoder: {mlp_keys: '$^', cnn_keys: 'image'}
+  decoder: {mlp_keys: '$^', cnn_keys: 'image'}
+
+textcrafter:
+
   envs.amount: 1
   run:
     log_keys_max: '^log_achievement_.*'
