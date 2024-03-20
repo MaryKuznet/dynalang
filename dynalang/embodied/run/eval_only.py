@@ -66,7 +66,7 @@ def eval_only(agent, env, logger, args):
       save_frames(ep, f"{path}", img_key="log_image")
 #      save_frames(ep, f"{path}/fpv", img_key="image")
 #      save_frames(ep, f"{path}/top", img_key="log_image")
-    if succs >= 4:
+    if succs >= 10:
       print('tut')
       exit()
     stats = {}
@@ -82,11 +82,6 @@ def eval_only(agent, env, logger, args):
       if re.match(args.log_keys_mean, key):
         stats[f'mean_{key}'] = ep[key].mean()
       if re.match(args.log_keys_max, key):
-        # if key.startswith('log_achievement'):
-        #   max_val = ep[key].max(0)
-        #   if max_val > -1:
-        #     stats[key] = max_val
-        # else:
         stats[f'max_{key}'] = ep[key].max(0).mean()
     metrics.add(stats, prefix='stats')
 
@@ -110,6 +105,6 @@ def eval_only(agent, env, logger, args):
       logger.add(metrics.result())
       logger.add(timer.stats(), prefix='timer')
       logger.write(fps=True)
-    if count_ep == 25:
+    if count_ep == 800:
       break
   logger.write()

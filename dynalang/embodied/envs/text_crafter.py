@@ -51,31 +51,40 @@ class PatchedCrafterEnv(embodied.Env):
 
         # Adding embeddings
 
-        self.custom_task = custom_task
+        self.custom_task, self.mode, enc = custom_task.split('_')
 
         directory = pathlib.Path(__file__).resolve().parent
-        if custom_task == 'dataset_train' or custom_task == 'data_train':
-            with open(directory / "dataset_embeds.pkl", "rb") as f:
-                self.cache, self.embed_cache, self.simple_task = pickle.load(f)
-                self.mode = 'train'
-                # print('train')
 
-        elif custom_task == 'dataset_test' or custom_task == 'data_test':
-            with open(directory / "dataset_embeds_test.pkl", "rb") as f:
-                self.cache, self.embed_cache, self.simple_task = pickle.load(f)
-                self.id_task = 0
-                self.mode = 'test'
-                self.test_info = dict()
-                # print('test')
+        if self.mode == 'train':
+            if enc == 'old':
+                with open(directory / "data/dataset_embeds.pkl", "rb") as f:
+                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+            else:
+                with open(directory / "data/dataset_embeds_train_new_enc.pkl", "rb") as f:
+                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+        else:
+            self.id_task = 0
+            self.test_info = dict()
 
-        if custom_task != 'dataset_train' and custom_task != 'dataset_test':
-            with open(directory / "crafter_embed.pkl", "rb") as f:
-                self.cache, self.embed_cache = pickle.load(f)
-                # print('not_data')
+            if enc == 'old':
+                with open(directory / "data/dataset_embeds_test.pkl", "rb") as f:
+                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+            else:
+                with open(directory / "data/dataset_embeds_test_new_enc.pkl", "rb") as f:
+                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+                
+            self.name_test_info = 'test_data/info_' + custom_task + '.pkl'
+
         
-        if custom_task[:4] == 'data':
-            self.custom_task = list(custom_task.split('_'))[0]
-            # print(self.custom_task)
+        if self.custom_task == 'data':
+            self._tasks = list(self.simple_task.values())
+        elif self.custom_task == 'dataset':
+            self._tasks = list(self.simple_task.keys())
+        elif self.custom_task == 'data+':
+            self._tasks = list(self.simple_task.values()) + list(self.simple_task.keys())
+
+        self.len_test = len(self._tasks)
+        print("Len tasks", self.len_test)
 
         self.empty_token = self.cache["<pad>"]
         self.tokens = [self.empty_token]
@@ -196,11 +205,12 @@ class PatchedCrafterEnv(embodied.Env):
                             terminated = True
                         break
 
-            elif  self.custom_task == 'dataset':
+            elif  self.custom_task == 'dataset' or self.custom_task == 'data+':
                 for achievement in self._current_achievement_tasks:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
                     if cur_achievement_count > self._previous_achievement_count[achievement]:
+                        # print(achievement)
                         reward += self._subtask_extra_reward
                         self._previous_achievement_count[achievement] = cur_achievement_count
 
@@ -244,35 +254,24 @@ class PatchedCrafterEnv(embodied.Env):
             self._update_episode_stats(info)
 
         # Add metrics
-            # for k in self._achievements:
-            #     augmented_obs[f'log_achievement_{k}'] = info['episode_extra_stats'].get(f'Task_achievements/{k}', -1)
-            
-            # augmented_obs['log_achievement_TaskScore'] = info['episode_extra_stats']['TaskScore'] 
-            # augmented_obs['log_achievement_TaskStepsToSuccess'] = info['episode_extra_stats'].get('TaskStepsToSuccess', -1)
-
             for key, value in info['episode_extra_stats'].items():
                 augmented_obs[key] = value
+                # print(key, value)
             
             if self.mode == 'test':
-                self.test_info[augmented_obs['log_language_info']] = (augmented_obs['log_achievement_TaskStepsToSuccess'], 
-                                                                      augmented_obs['log_achievement_SuccessRate'])
-                if self.id_task == len(self.simple_task):
-                    with open('my_dict.pkl', 'wb') as f:
-                        pickle.dump(self.test_info, f)
-                        exit()
-            # print(augmented_obs)
+                self.test_info[augmented_obs['log_language_info']] = self.test_info.get(augmented_obs['log_language_info'], []) + [(augmented_obs['log_achievement_TaskScore'], augmented_obs['log_achievement_SuccessRate'])]
 
-        # else:
-        #     for k in self._achievements:
-        #         augmented_obs[f'log_achievement_{k}'] = -1
-
-        #     augmented_obs['log_achievement_TaskScore'] = -1 
-        #     augmented_obs['log_achievement_TaskStepsToSuccess'] = -1
+                with open(self.name_test_info, 'wb') as f:
+                    pickle.dump(self.test_info, f)
+                
+                if self.len_test == self.id_task:
+                    self.id_task = 0
+                # print(self.id_task)
 
         # End add metrics
 
-        # if reward >= 0.7:
-        #     print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks, reward)
+        #if reward >= 0.7:
+            # print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks, reward)
 
         if self.vis:
             self.prev_action = self._env.action_names[action]
@@ -301,9 +300,13 @@ class PatchedCrafterEnv(embodied.Env):
                 else:
                     info[key]['log_achievement_SuccessRate'] = 0
 
-            elif self.custom_task == 'dataset':
+            elif self.custom_task == 'dataset' or self.custom_task == 'data+':
                 # print(self.simple_task[self._current_achievement_task])
-                for achievement in set(self.simple_task[self._current_achievement_task]):
+                if isinstance(self._current_achievement_task, str):
+                    achievements = set(self.simple_task[self._current_achievement_task])
+                else:
+                    achievements = self._current_achievement_task
+                for achievement in achievements:
                     key_name = f'log_achievement_{achievement}'
                     info[key][key_name] = self._previous_achievement_count[achievement]
                 sum_previous_achievement_count = sum(self._previous_achievement_count.values())
@@ -332,31 +335,32 @@ class PatchedCrafterEnv(embodied.Env):
 
         if self.custom_task == 'random':
             number_tasks = random.choice(range(6))
-        elif self.custom_task != 'data' and self.custom_task != 'dataset':
+        elif self.custom_task != 'data' and self.custom_task != 'dataset' and self.custom_task != 'data+':
             number_tasks = int(self.custom_task)
         
         if self.custom_task == 'data':
-            tasks = list(self.simple_task.values())
-
             if self.mode == 'train':
-                self._current_achievement_tasks = random.choice(tasks)
+                self._current_achievement_tasks = random.choice(self._tasks)
             else:
-                self._current_achievement_task = tasks[self.id_task]
+                self._current_achievement_task = self._tasks[self.id_task]
+                self.id_task += 1
+
             self._current_achievement_task = self._current_achievement_tasks.copy() 
             self._previous_achievement_count = {}
             for task in set(self._current_achievement_tasks):
                 self._previous_achievement_count[task] = 0
         
-        elif self.custom_task == 'dataset':
-            tasks = list(self.simple_task.keys())
-
+        elif self.custom_task == 'dataset' or self.custom_task == 'data+':
             if self.mode == 'train':
-                self._current_achievement_task = random.choice(tasks)
+                self._current_achievement_task = random.choice(self._tasks)
             else:
-                self._current_achievement_task = tasks[self.id_task]
+                self._current_achievement_task = self._tasks[self.id_task]
                 self.id_task += 1
 
-            self._current_achievement_tasks = self.simple_task[self._current_achievement_task].copy()
+            if isinstance(self._current_achievement_task, str):
+                self._current_achievement_tasks = self.simple_task[self._current_achievement_task].copy()
+            else:
+                self._current_achievement_tasks = self._current_achievement_task.copy()
             self._previous_achievement_count = {}
             for task in set(self._current_achievement_tasks):
                 self._previous_achievement_count[task] = 0
@@ -385,18 +389,10 @@ class PatchedCrafterEnv(embodied.Env):
             'token_embed': self.token_embeds[self.cur_token],
             "is_read_step": False
         }
-        # print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks)
+        # print(self.string, self._current_achievement_tasks)
 
         if self.vis:
             self.prev_action = ""
             augmented_obs["log_image"] = self.render_with_text(augmented_obs["log_language_info"])
-
-        # Add metrics
-
-        # for k in self._achievements:
-        #     augmented_obs[f'log_achievement_{k}'] = -1
-
-        # augmented_obs['log_achievement_TaskScore'] = -1
-        # augmented_obs['log_achievement_TaskStepsToSuccess'] = -1
 
         return augmented_obs
