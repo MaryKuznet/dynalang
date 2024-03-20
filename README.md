@@ -1,4 +1,4 @@
-# Learning to Model the World with Language
+# Running Dynalang in a TextCrafter environment
 
 ![Dynalang Overview](banner.gif)
 
