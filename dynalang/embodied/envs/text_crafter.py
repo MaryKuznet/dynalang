@@ -285,51 +285,52 @@ class PatchedCrafterEnv(embodied.Env):
         return scores
 
     def _update_episode_stats(self, info, key='episode_extra_stats'):
-        if self._current_achievement_task:
 
-            if self.custom_task == 'data':
-                for achievement in set(self._current_achievement_tasks):
-                    key_name = f'log_achievement_{achievement}'
-                    info[key][key_name] = self._previous_achievement_count[achievement]
-                sum_previous_achievement_count = sum(self._previous_achievement_count.values())
-                info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
-                if sum_previous_achievement_count:
-                    info[key]['log_achievement_TaskStepsToSuccess'] = self._step
-                if len(self._current_achievement_task) == 0:
-                    info[key]['log_achievement_SuccessRate'] = 1
-                else:
-                    info[key]['log_achievement_SuccessRate'] = 0
-
-            elif self.custom_task == 'dataset' or self.custom_task == 'data+':
-                # print(self.simple_task[self._current_achievement_task])
-                if isinstance(self._current_achievement_task, str):
-                    achievements = set(self.simple_task[self._current_achievement_task])
-                else:
-                    achievements = self._current_achievement_task
-                for achievement in achievements:
-                    key_name = f'log_achievement_{achievement}'
-                    info[key][key_name] = self._previous_achievement_count[achievement]
-                sum_previous_achievement_count = sum(self._previous_achievement_count.values())
-                info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
-                if sum_previous_achievement_count:
-                    info[key]['log_achievement_TaskStepsToSuccess'] = self._step
-                if len(self._current_achievement_tasks) == 0:
-                    info[key]['log_achievement_SuccessRate'] = 1
-                else:
-                    info[key]['log_achievement_SuccessRate'] = 0
-
+        if self.custom_task == 'data':
+            for achievement in set(self._current_achievement_tasks):
+                key_name = f'log_achievement_{achievement}'
+                info[key][key_name] = self._previous_achievement_count[achievement]
+            sum_previous_achievement_count = sum(self._previous_achievement_count.values())
+            info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
+            if sum_previous_achievement_count:
+                info[key]['log_achievement_TaskStepsToSuccess'] = self._step
+            if len(self._current_achievement_task) == 0:
+                info[key]['log_achievement_SuccessRate'] = 1
             else:
+                info[key]['log_achievement_SuccessRate'] = 0
+
+        elif self.custom_task == 'dataset' or self.custom_task == 'data+':
+            # print(self.simple_task[self._current_achievement_task])
+            if isinstance(self._current_achievement_task, str):
+                achievements = set(self.simple_task[self._current_achievement_task])
+            else:
+                achievements = self._current_achievement_task
+            for achievement in achievements:
+                key_name = f'log_achievement_{achievement}'
+                info[key][key_name] = self._previous_achievement_count[achievement]
+            sum_previous_achievement_count = sum(self._previous_achievement_count.values())
+            info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
+            if sum_previous_achievement_count:
+                info[key]['log_achievement_TaskStepsToSuccess'] = self._step
+            if len(self._current_achievement_tasks) == 0:
+                info[key]['log_achievement_SuccessRate'] = 1
+            else:
+                info[key]['log_achievement_SuccessRate'] = 0
+
+        else:
+
+            if self._current_achievement_task:
                 key_name = f'log_achievement_{self._current_achievement_task}'
                 info[key][key_name] = self._previous_achievement_count
                 info[key]['log_achievement_TaskScore'] = self._previous_achievement_count
                 if self._previous_achievement_count:
                     info[key]['log_achievement_TaskStepsToSuccess'] = self._step
-        else:
-            achievements = {'Achievements/' + ach: 100.0 if val > 0.0 else 0.0 for ach, val in
-                            info['achievements'].items()}
-            info[key] = achievements
-            info[key]['Num_achievements'] = sum(val > 0 for val in achievements.values())
-            info[key]['Score'] = self._compute_scores(np.array(list(achievements.values())))
+            else:
+                achievements = {'Achievements/' + ach: 100.0 if val > 0.0 else 0.0 for ach, val in
+                                info['achievements'].items()}
+                info[key] = achievements
+                info[key]['Num_achievements'] = sum(val > 0 for val in achievements.values())
+                info[key]['Score'] = self._compute_scores(np.array(list(achievements.values())))
 
     def reset(self, *args, **kwargs):
 
