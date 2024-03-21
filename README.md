@@ -34,7 +34,7 @@ Example:
 ```
 sh scripts/run_text_crafter.sh data_train_new debug_data 1 2
 ```
-$data+_train_new$ is the mode. The first is the choice of the dataset $data$ – simple tasks, $data+$ - simple tasks mixed with instructions, $dataset$ – only instructions.
+data+_train_new is the mode. The first is the choice of the dataset $data$ – simple tasks, $data+$ - simple tasks mixed with instructions, $dataset$ – only instructions.
 
 There are $train$ and $test$ modes, but test is run using a different script. $new$ and $old$ data encoding modes. $old$ is the old way with t5, $new$ is your new one.
 Thus, there are 6 modes:
