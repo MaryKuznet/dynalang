@@ -1,6 +1,18 @@
 #! /bin/bash
-
-task=$1
+"""
+  task = datasettype_mode_encoder 
+  datasettype: text instructions for text_crafter 
+               "medium_instructions"
+               "hard_instructions"
+               "mixed_medium_hard_instructions"
+  mode: self.mode of text_crafter environment
+        "train"
+        ......
+  encoder: ?
+        "new"
+        "old"
+"""
+task=$1 
 name=$2
 device=$3
 seed=$4
