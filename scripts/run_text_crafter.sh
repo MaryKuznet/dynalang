@@ -1,17 +1,17 @@
 #! /bin/bash
-"""
-  task = datasettype_mode_encoder 
-  datasettype: text instructions for text_crafter 
-               "MediumInstructions"
-               "HardInstructions"
-               "MixedMediumHardInstructions"
-  mode: self.mode of text_crafter environment
-        "train"
-        ......
-  encoder: ?
-        "new"
-        "old"
-"""
+# task = datasettype_mode_encoder 
+# datasettype: text instructions for text_crafter 
+#              "MediumInstructions"
+#              "HardInstructions"
+#              "MixedMediumHardInstructions"
+#              "random"
+# mode: self.mode of text_crafter environment
+#       "train"
+#       ......
+# encoder: ?
+#         "new"
+#         "old"
+
 task=$1 
 name=$2
 device=$3

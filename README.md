@@ -32,7 +32,7 @@ sh scripts/run_text_crafter.sh data+_train_new $NAME_OF_EXPERIMENT$ $GPU$ $SEED$
 ```
 Example:
 ```
-sh scripts/run_text_crafter.sh medium_train_new debug_data 1 2
+sh scripts/run_text_crafter.sh MediumInstructions_train_new debug_data 1 2
 ```
 data+_train_new is the mode. The first is the choice of the dataset $data$ – simple tasks, $data+$ - simple tasks mixed with instructions, $dataset$ – only instructions.
 

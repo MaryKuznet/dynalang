@@ -27,7 +27,7 @@ class PatchedCrafterEnv(embodied.Env):
         'place_furnace', 'place_plant', 'place_stone', 'place_table', 'wake_up',
     ]
 
-    def __init__(self, custom_task=None, recorder_dir=None, vis=False):
+    def __init__(self, config_task=None, recorder_dir=None, vis=False):
         self._env = CrafterEnv()
         if recorder_dir:
             # VideoRecorder should be fixed, to work with this patched environment
@@ -50,8 +50,7 @@ class PatchedCrafterEnv(embodied.Env):
         ]
 
         # Adding embeddings
-
-        self.dataset_type, self.mode, enc = custom_task.split('_')
+        self.dataset_type, self.mode, enc = config_task.split('_')
 
         directory = pathlib.Path(__file__).resolve().parent
 
@@ -73,7 +72,7 @@ class PatchedCrafterEnv(embodied.Env):
                 with open(directory / "data/dataset_embeds_test_new_enc.pkl", "rb") as f:
                     self.cache, self.embed_cache, self.LLM_discription_of_medium_instuctions = pickle.load(f)
                 
-            self.name_test_info = 'test_data/info_' + custom_task + '.pkl'
+            self.name_test_info = 'test_data/info_' + config_task + '.pkl'
 
         
         if self.dataset_type == 'MediumInstructions':
@@ -82,6 +81,8 @@ class PatchedCrafterEnv(embodied.Env):
             self._tasks = list(self.LLM_discription_of_medium_instuctions.keys())
         elif self.dataset_type == 'MixedMediumHardInstructions':
             self._tasks = list(self.LLM_discription_of_medium_instuctions.values()) + list(self.LLM_discription_of_medium_instuctions.keys())
+        else:
+            assert self.dataset_type == 'random'
 
         self.len_test = len(self._tasks)
         print("Len tasks", self.len_test)
