@@ -187,7 +187,7 @@ class PatchedCrafterEnv(embodied.Env):
 
         # Code to handle additional reward for the current achievement task
         if self._current_achievement_task:
-            if self.dataset_type == 'data':
+            if self.dataset_type == 'MediumInstructions':
                 for achievement in self._current_achievement_task:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
@@ -203,7 +203,7 @@ class PatchedCrafterEnv(embodied.Env):
                             terminated = True
                         break
 
-            elif  self.dataset_type == 'dataset' or self.dataset_type == 'data+':
+            elif  self.dataset_type == 'HardInstructions' or self.dataset_type == 'MixedMediumHardInstructions':
                 for achievement in self._current_achievement_tasks:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
@@ -284,7 +284,7 @@ class PatchedCrafterEnv(embodied.Env):
 
     def _update_episode_stats(self, info, key='episode_extra_stats'):
 
-        if self.dataset_type == 'data':
+        if self.dataset_type == 'MediumInstructions':
             for achievement in set(self._current_achievement_tasks):
                 key_name = f'log_achievement_{achievement}'
                 info[key][key_name] = self._previous_achievement_count[achievement]
@@ -297,7 +297,7 @@ class PatchedCrafterEnv(embodied.Env):
             else:
                 info[key]['log_achievement_SuccessRate'] = 0
 
-        elif self.dataset_type == 'dataset' or self.dataset_type == 'data+':
+        elif self.dataset_type == 'HardInstructions' or self.dataset_type == 'MixedMediumHardInstructions':
             # print(self.LLM_discription_of_medium_instuctions[self._current_achievement_task])
             if isinstance(self._current_achievement_task, str):
                 achievements = set(self.LLM_discription_of_medium_instuctions[self._current_achievement_task])
@@ -334,10 +334,10 @@ class PatchedCrafterEnv(embodied.Env):
 
         if self.dataset_type == 'random':
             number_tasks = random.choice(range(6))
-        elif self.dataset_type != 'data' and self.dataset_type != 'dataset' and self.dataset_type != 'data+':
+        elif self.dataset_type != 'MediumInstructions' and self.dataset_type != 'HardInstructions' and self.dataset_type != 'MixedMediumHardInstructions':
             number_tasks = int(self.dataset_type)
         
-        if self.dataset_type == 'data':
+        if self.dataset_type == 'MediumInstructions':
             if self.mode == 'train':
                 self._current_achievement_tasks = random.choice(self._tasks)
             else:
@@ -349,7 +349,7 @@ class PatchedCrafterEnv(embodied.Env):
             for task in set(self._current_achievement_tasks):
                 self._previous_achievement_count[task] = 0
         
-        elif self.dataset_type == 'dataset' or self.dataset_type == 'data+':
+        elif self.dataset_type == 'HardInstructions' or self.dataset_type == 'MixedMediumHardInstructions':
             if self.mode == 'train':
                 self._current_achievement_task = random.choice(self._tasks)
             else:
