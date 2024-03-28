@@ -2,9 +2,9 @@
 """
   task = datasettype_mode_encoder 
   datasettype: text instructions for text_crafter 
-               "medium_instructions"
-               "hard_instructions"
-               "mixed_medium_hard_instructions"
+               "MediumInstructions"
+               "HardInstructions"
+               "MixedMediumHardInstructions"
   mode: self.mode of text_crafter environment
         "train"
         ......

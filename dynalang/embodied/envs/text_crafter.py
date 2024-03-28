@@ -76,11 +76,11 @@ class PatchedCrafterEnv(embodied.Env):
             self.name_test_info = 'test_data/info_' + custom_task + '.pkl'
 
         
-        if self.dataset_type == 'medium_instructions':
+        if self.dataset_type == 'MediumInstructions':
             self._tasks = list(self.LLM_discription_of_medium_instuctions.values())
-        elif self.dataset_type == 'hard_instructions':
+        elif self.dataset_type == 'HardInstructions':
             self._tasks = list(self.LLM_discription_of_medium_instuctions.keys())
-        elif self.dataset_type == 'mixed_medium_hard_instructions':
+        elif self.dataset_type == 'MixedMediumHardInstructions':
             self._tasks = list(self.LLM_discription_of_medium_instuctions.values()) + list(self.LLM_discription_of_medium_instuctions.keys())
 
         self.len_test = len(self._tasks)
