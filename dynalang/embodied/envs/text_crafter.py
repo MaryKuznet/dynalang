@@ -51,37 +51,37 @@ class PatchedCrafterEnv(embodied.Env):
 
         # Adding embeddings
 
-        self.custom_task, self.mode, enc = custom_task.split('_')
+        self.dataset_type, self.mode, enc = custom_task.split('_')
 
         directory = pathlib.Path(__file__).resolve().parent
 
         if self.mode == 'train':
             if enc == 'old':
                 with open(directory / "data/dataset_embeds.pkl", "rb") as f:
-                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+                    self.cache, self.embed_cache, self.discription_to_medium_instuctions = pickle.load(f)
             else:
                 with open(directory / "data/dataset_embeds_train_new_enc.pkl", "rb") as f:
-                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+                    self.cache, self.embed_cache, self.discription_to_medium_instuctions = pickle.load(f)
         else:
             self.id_task = 0
             self.test_info = dict()
 
             if enc == 'old':
                 with open(directory / "data/dataset_embeds_test.pkl", "rb") as f:
-                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+                    self.cache, self.embed_cache, self.discription_to_medium_instuctions = pickle.load(f)
             else:
                 with open(directory / "data/dataset_embeds_test_new_enc.pkl", "rb") as f:
-                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+                    self.cache, self.embed_cache, self.discription_to_medium_instuctions = pickle.load(f)
                 
             self.name_test_info = 'test_data/info_' + custom_task + '.pkl'
 
         
-        if self.custom_task == 'data':
-            self._tasks = list(self.simple_task.values())
-        elif self.custom_task == 'dataset':
-            self._tasks = list(self.simple_task.keys())
-        elif self.custom_task == 'data+':
-            self._tasks = list(self.simple_task.values()) + list(self.simple_task.keys())
+        if self.dataset_type == 'data':
+            self._tasks = list(self.discription_to_medium_instuctions.values())
+        elif self.dataset_type == 'dataset':
+            self._tasks = list(self.discription_to_medium_instuctions.keys())
+        elif self.dataset_type == 'data+':
+            self._tasks = list(self.discription_to_medium_instuctions.values()) + list(self.discription_to_medium_instuctions.keys())
 
         self.len_test = len(self._tasks)
         print("Len tasks", self.len_test)
@@ -189,7 +189,7 @@ class PatchedCrafterEnv(embodied.Env):
 
         # Code to handle additional reward for the current achievement task
         if self._current_achievement_task:
-            if self.custom_task == 'data':
+            if self.dataset_type == 'data':
                 for achievement in self._current_achievement_task:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
@@ -205,7 +205,7 @@ class PatchedCrafterEnv(embodied.Env):
                             terminated = True
                         break
 
-            elif  self.custom_task == 'dataset' or self.custom_task == 'data+':
+            elif  self.dataset_type == 'dataset' or self.dataset_type == 'data+':
                 for achievement in self._current_achievement_tasks:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
@@ -286,7 +286,7 @@ class PatchedCrafterEnv(embodied.Env):
 
     def _update_episode_stats(self, info, key='episode_extra_stats'):
 
-        if self.custom_task == 'data':
+        if self.dataset_type == 'data':
             for achievement in set(self._current_achievement_tasks):
                 key_name = f'log_achievement_{achievement}'
                 info[key][key_name] = self._previous_achievement_count[achievement]
@@ -299,10 +299,10 @@ class PatchedCrafterEnv(embodied.Env):
             else:
                 info[key]['log_achievement_SuccessRate'] = 0
 
-        elif self.custom_task == 'dataset' or self.custom_task == 'data+':
-            # print(self.simple_task[self._current_achievement_task])
+        elif self.dataset_type == 'dataset' or self.dataset_type == 'data+':
+            # print(self.discription_to_medium_instuctions[self._current_achievement_task])
             if isinstance(self._current_achievement_task, str):
-                achievements = set(self.simple_task[self._current_achievement_task])
+                achievements = set(self.discription_to_medium_instuctions[self._current_achievement_task])
             else:
                 achievements = self._current_achievement_task
             for achievement in achievements:
@@ -334,12 +334,12 @@ class PatchedCrafterEnv(embodied.Env):
 
     def reset(self, *args, **kwargs):
 
-        if self.custom_task == 'random':
+        if self.dataset_type == 'random':
             number_tasks = random.choice(range(6))
-        elif self.custom_task != 'data' and self.custom_task != 'dataset' and self.custom_task != 'data+':
-            number_tasks = int(self.custom_task)
+        elif self.dataset_type != 'data' and self.dataset_type != 'dataset' and self.dataset_type != 'data+':
+            number_tasks = int(self.dataset_type)
         
-        if self.custom_task == 'data':
+        if self.dataset_type == 'data':
             if self.mode == 'train':
                 self._current_achievement_tasks = random.choice(self._tasks)
             else:
@@ -351,7 +351,7 @@ class PatchedCrafterEnv(embodied.Env):
             for task in set(self._current_achievement_tasks):
                 self._previous_achievement_count[task] = 0
         
-        elif self.custom_task == 'dataset' or self.custom_task == 'data+':
+        elif self.dataset_type == 'dataset' or self.dataset_type == 'data+':
             if self.mode == 'train':
                 self._current_achievement_task = random.choice(self._tasks)
             else:
@@ -359,7 +359,7 @@ class PatchedCrafterEnv(embodied.Env):
                 self.id_task += 1
 
             if isinstance(self._current_achievement_task, str):
-                self._current_achievement_tasks = self.simple_task[self._current_achievement_task].copy()
+                self._current_achievement_tasks = self.discription_to_medium_instuctions[self._current_achievement_task].copy()
             else:
                 self._current_achievement_tasks = self._current_achievement_task.copy()
             self._previous_achievement_count = {}
