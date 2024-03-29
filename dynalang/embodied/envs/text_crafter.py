@@ -50,12 +50,12 @@ class PatchedCrafterEnv(embodied.Env):
         ]
 
         # Adding embeddings
-        self.dataset_type, self.mode, enc = config_task.split('_')
+        self.dataset_type, self.mode, encoder_type = config_task.split('_')
 
         directory = pathlib.Path(__file__).resolve().parent
 
-        if self.mode == 'train':
-            if enc == 'old':
+        if self.mode == 'Train':
+            if encoder_type == 'old':
                 with open(directory / "data/dataset_embeds.pkl", "rb") as f:
                     self.cache, self.embed_cache, self.LLM_discription_of_medium_instuctions = pickle.load(f)
             else:
@@ -65,7 +65,7 @@ class PatchedCrafterEnv(embodied.Env):
             self.id_task = 0
             self.test_info = dict()
 
-            if enc == 'old':
+            if encoder_type == 'old':
                 with open(directory / "data/dataset_embeds_test.pkl", "rb") as f:
                     self.cache, self.embed_cache, self.LLM_discription_of_medium_instuctions = pickle.load(f)
             else:
@@ -82,10 +82,9 @@ class PatchedCrafterEnv(embodied.Env):
         elif self.dataset_type == 'MixedMediumHardInstructions':
             self._tasks = list(self.LLM_discription_of_medium_instuctions.values()) + list(self.LLM_discription_of_medium_instuctions.keys())
         else:
-            assert self.dataset_type == 'random'
+            assert self.dataset_type == 'Random'
 
         self.len_test = len(self._tasks)
-        print("Len tasks", self.len_test)
 
         self.empty_token = self.cache["<pad>"]
         self.tokens = [self.empty_token]
@@ -98,6 +97,13 @@ class PatchedCrafterEnv(embodied.Env):
 
         # Add metrics
         self._achievements = crafter.constants.achievements.copy()
+
+        print("*************")
+        print("Dataset Type:", self.dataset_type)
+        print("Tasks count:", self.len_test)
+        print("Encoder Type:", encoder_type)
+        print('Env mode:', self.mode)
+        print("*************")
 
 
     def render(self):
@@ -256,7 +262,7 @@ class PatchedCrafterEnv(embodied.Env):
                 augmented_obs[key] = value
                 # print(key, value)
             
-            if self.mode == 'test':
+            if self.mode == 'Test':
                 self.test_info[augmented_obs['log_language_info']] = self.test_info.get(augmented_obs['log_language_info'], []) + [(augmented_obs['log_achievement_TaskScore'], augmented_obs['log_achievement_SuccessRate'])]
 
                 with open(self.name_test_info, 'wb') as f:
@@ -332,13 +338,13 @@ class PatchedCrafterEnv(embodied.Env):
 
     def reset(self, *args, **kwargs):
 
-        if self.dataset_type == 'random':
+        if self.dataset_type == 'Random':
             number_tasks = random.choice(range(6))
         elif self.dataset_type != 'MediumInstructions' and self.dataset_type != 'HardInstructions' and self.dataset_type != 'MixedMediumHardInstructions':
             number_tasks = int(self.dataset_type)
         
         if self.dataset_type == 'MediumInstructions':
-            if self.mode == 'train':
+            if self.mode == 'Train':
                 self._current_achievement_tasks = random.choice(self._tasks)
             else:
                 self._current_achievement_task = self._tasks[self.id_task]
@@ -350,7 +356,7 @@ class PatchedCrafterEnv(embodied.Env):
                 self._previous_achievement_count[task] = 0
         
         elif self.dataset_type == 'HardInstructions' or self.dataset_type == 'MixedMediumHardInstructions':
-            if self.mode == 'train':
+            if self.mode == 'Train':
                 self._current_achievement_task = random.choice(self._tasks)
             else:
                 self._current_achievement_task = self._tasks[self.id_task]

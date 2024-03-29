@@ -4,13 +4,13 @@
 #              "MediumInstructions"
 #              "HardInstructions"
 #              "MixedMediumHardInstructions"
-#              "random"
+#              "Random"
 # mode: self.mode of text_crafter environment
-#       "train"
-#       ......
+#       "Train"
+#       "Test"
 # encoder: ?
-#         "new"
-#         "old"
+#         "New"
+#         "Old"
 
 task=$1 
 name=$2
