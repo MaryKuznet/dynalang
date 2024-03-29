@@ -121,7 +121,8 @@ class PatchedCrafterEnv(embodied.Env):
     @property
     def observation_space(self):
 
-        image = spaces.Box(low=0, high=1, shape=self._size)
+        #image = spaces.Box(low=0, high=1, shape=self._size)
+        image = spaces.Box(0, 255, tuple(self._size) + (3,), np.uint8)
         log_language_info = spaces.Text(max_length=10000)
         token = spaces.Box(0, 32100, shape=(), dtype=np.uint32)
         token_embed = spaces.Box(-np.inf, np.inf, shape=(self.embed_size,), dtype=np.float32)
