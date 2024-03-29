@@ -46,7 +46,7 @@ class PatchedCrafterEnv(embodied.Env):
 
         self.wrappers = [
           from_gym.FromGym,
-          lambda e: embodied.wrappers.ResizeImage(e, self._size),
+          #lambda e: embodied.wrappers.ResizeImage(e, tuple(self._size) + (3,)),
         ]
 
         # Adding embeddings

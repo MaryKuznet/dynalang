@@ -29,8 +29,10 @@ export CUDA_VISIBLE_DEVICES=$device; python dynalang/train.py \
   --task textcrafter_$task \
   --envs.amount 1 \
   --seed $seed \
-  --encoder.mlp_keys token$ \
-  --decoder.mlp_keys token$ \
+  --encoder.mlp_keys token_embed$ \
+  --decoder.mlp_keys token_embed$ \
+  --encoder.cnn_keys image$ \
+  --decoder.cnn_keys image$ \
   --decoder.vector_dist onehot \
   --batch_size 16 \
   --batch_length 256 \
