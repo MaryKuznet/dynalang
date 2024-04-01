@@ -27,19 +27,27 @@ class PatchedCrafterEnv(embodied.Env):
         'place_furnace', 'place_plant', 'place_stone', 'place_table', 'wake_up',
     ]
 
-    def __init__(self, custom_task=None, recorder_dir=None, vis=False):
-        self._env = CrafterEnv()
+    def __init__(self, custom_task=None, mode='train', enc='old', spec_seed='random', recorder_dir=None, vis=False):
+
+        self.custom_task = custom_task    # data type: data or data+ or dataset
+        self.mode = mode                  # type of training: train or test 
+        
+        print(self.custom_task, mode, enc, spec_seed)
+        if spec_seed == 'random':         # set the seed in the environment, if necessary
+            self._env = CrafterEnv()
+        else:
+            self._env = CrafterEnv(seed=int(spec_seed))
+
         if recorder_dir:
             # VideoRecorder should be fixed, to work with this patched environment
             crafter.Recorder(self._env, recorder_dir, save_video=True)
         self.num_agents = 1
         self._size = (64, 64)
         self._task_vector_size = 32
-        self._subtask_extra_reward = 1.0
+        self._subtask_extra_reward = 1.0        # reward for completed test task
 
-        self._current_achievement_task = None
-        self._previous_achievement_count = None
-        self._tasks = None
+        self._current_achievement_task = None   # current instruction
+        self._previous_achievement_count = None # Dictionary of rewards for current tasks
         self._step = None
 
         self._current_achievement_tasks = None
@@ -51,45 +59,38 @@ class PatchedCrafterEnv(embodied.Env):
 
         # Adding embeddings
 
-        self.custom_task, self.mode, enc = custom_task.split('_')
-
         directory = pathlib.Path(__file__).resolve().parent
 
+        # Select the data depending on the mode
         if self.mode == 'train':
             if enc == 'old':
                 with open(directory / "data/dataset_embeds.pkl", "rb") as f:
-                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)
+                    # Dictionaries: task : tokens, task : embedding, instructions : simple tasks
+                    self.cache, self.embed_cache, self.simple_task = pickle.load(f)     
             else:
                 with open(directory / "data/dataset_embeds_train_new_enc.pkl", "rb") as f:
                     self.cache, self.embed_cache, self.simple_task = pickle.load(f)
         else:
-            self.id_task = 0
-            self.test_info = dict()
-
             if enc == 'old':
                 with open(directory / "data/dataset_embeds_test.pkl", "rb") as f:
                     self.cache, self.embed_cache, self.simple_task = pickle.load(f)
             else:
                 with open(directory / "data/dataset_embeds_test_new_enc.pkl", "rb") as f:
                     self.cache, self.embed_cache, self.simple_task = pickle.load(f)
-                
-            self.name_test_info = 'test_data/info_' + custom_task + '.pkl'
+            
+            self.id_task = 0                                                            # the number of the current instruction
+            self.test_info = dict()                                                     # dictionary with data for writing
+            # The name of the file for recording test results
+            self.name_test_info = 'test_data/info_' + custom_task + '_' + mode + '_' + enc + '_' + spec_seed + '.pkl'              
+            self.len_test = len(self._tasks)                                            # the number of unique instructions in the data
 
-        
-        if self.custom_task == 'data':
-            self._tasks = list(self.simple_task.values())
-        elif self.custom_task == 'dataset':
-            self._tasks = list(self.simple_task.keys())
-        elif self.custom_task == 'data+':
-            self._tasks = list(self.simple_task.values()) + list(self.simple_task.keys())
 
-        self.len_test = len(self._tasks)
-        print("Len tasks", self.len_test)
+        self._tasks = list(self.simple_task.keys())                                     # list of possible tasks
 
-        self.empty_token = self.cache["<pad>"]
-        self.tokens = [self.empty_token]
-        self.cur_token = 0
-        self.embed_size = 512
+        self.empty_token = self.cache["<pad>"]                                          # embedding an empty token
+        self.tokens = [self.empty_token]                                                # list of tokens of the current instruction
+        self.cur_token = 0                                                              # the number of the current token
+        self.embed_size = 512                                                           # embedding size
 
         # For testing mode
         self.vis = vis
@@ -100,7 +101,7 @@ class PatchedCrafterEnv(embodied.Env):
 
 
     def render(self):
-        self._env.render()
+        self._env.render(mode="rgb_array")
     
     def render_with_text(self, text):
         img = self._env.render()
@@ -114,7 +115,7 @@ class PatchedCrafterEnv(embodied.Env):
     @property
     def observation_space(self):
 
-        image = spaces.Box(low=0, high=1, shape=self._size)
+        image = spaces.Box(low=0, high=1, shape=(self._size[0], self._size[1], 3))
         log_language_info = spaces.Text(max_length=10000)
         token = spaces.Box(0, 32100, shape=(), dtype=np.uint32)
         token_embed = spaces.Box(-np.inf, np.inf, shape=(self.embed_size,), dtype=np.float32)
@@ -135,7 +136,7 @@ class PatchedCrafterEnv(embodied.Env):
                 shape=(100 * self._size[0], 100 * self._size[1], 3),
             )
 
-        # Add metrics
+        # Adding additional metrics
         
         for k in self._achievements:
             obs_space[f'log_achievement_{k}'] = spaces.Box(-1, 100, shape=(), dtype=np.uint32)
@@ -148,18 +149,18 @@ class PatchedCrafterEnv(embodied.Env):
 
     @property
     def action_space(self):
-        # noinspection PyUnresolvedReferences
         return gymnasium.spaces.Discrete(len(crafter_constants.actions))
 
-    def _get_task_vector(self):
-        # Create a one-hot encoded vector for the current achievement task
-        task_vector = np.zeros(self._task_vector_size, dtype=np.float32)
-        if self._current_achievement_task:
-            task_index = self.achievements_list.index(self._current_achievement_task)
-            task_vector[task_index] = 1
-        return task_vector
+    # def _get_task_vector(self):
+    #     # Create a one-hot encoded vector for the current achievement task
+    #     task_vector = np.zeros(self._task_vector_size, dtype=np.float32)
+    #     if self._current_achievement_task:
+    #         task_index = self.achievements_list.index(self._current_achievement_task)
+    #         task_vector[task_index] = 1
+    #     return task_vector
     
     def _get_and_set_task_embed(self):
+        # Setting the current list of tokens and embeddings, depending on the current instruction (current_achievement_task)
         if self._current_achievement_task:
             if isinstance(self._current_achievement_task, str):
                 self.string = ' '.join(self._current_achievement_task.split('_'))
@@ -190,6 +191,7 @@ class PatchedCrafterEnv(embodied.Env):
         # Code to handle additional reward for the current achievement task
         if self._current_achievement_task:
             if self.custom_task == 'data':
+                # Checking the completion of one of the tasks
                 for achievement in self._current_achievement_task:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
@@ -197,6 +199,7 @@ class PatchedCrafterEnv(embodied.Env):
                         reward += self._subtask_extra_reward
                         self._previous_achievement_count[achievement] = cur_achievement_count
 
+                        # If the task is completed, delete it from the list
                         self._current_achievement_task.remove(achievement)
                         if len(self._current_achievement_task) > 0:
                             self._get_and_set_task_embed()
@@ -206,6 +209,7 @@ class PatchedCrafterEnv(embodied.Env):
                         break
 
             elif  self.custom_task == 'dataset' or self.custom_task == 'data+':
+                # Checking the completion of one of the tasks
                 for achievement in self._current_achievement_tasks:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
@@ -214,6 +218,7 @@ class PatchedCrafterEnv(embodied.Env):
                         reward += self._subtask_extra_reward
                         self._previous_achievement_count[achievement] = cur_achievement_count
 
+                        # If the task is completed, delete it from the list
                         self._current_achievement_tasks.remove(achievement)
                         if len(self._current_achievement_tasks) == 0:
                             terminated = True
@@ -235,6 +240,7 @@ class PatchedCrafterEnv(embodied.Env):
                     else:
                         terminated = True
 
+        # The next token from the instruction
         self.cur_token += 1
         if self.cur_token >= len(self.tokens):
             self.cur_token = 0
@@ -250,25 +256,25 @@ class PatchedCrafterEnv(embodied.Env):
         done = terminated or truncated
 
         info['episode_extra_stats'] = info.get('episode_extra_stats', {})
+
+        # calculating additional metrics  
         if done:
             self._update_episode_stats(info)
 
-        # Add metrics
+        # Add metrics to to observations
             for key, value in info['episode_extra_stats'].items():
                 augmented_obs[key] = value
-                # print(key, value)
             
+            # Recording test results
             if self.mode == 'test':
-                self.test_info[augmented_obs['log_language_info']] = self.test_info.get(augmented_obs['log_language_info'], []) + [(augmented_obs['log_achievement_TaskScore'], augmented_obs['log_achievement_SuccessRate'])]
+                self.test_info[self.name_task] = self.test_info.get(self.name_task, []) + [(augmented_obs['log_achievement_TaskScore'], augmented_obs['log_achievement_SuccessRate'])]
 
                 with open(self.name_test_info, 'wb') as f:
                     pickle.dump(self.test_info, f)
                 
                 if self.len_test == self.id_task:
                     self.id_task = 0
-                # print(self.id_task)
 
-        # End add metrics
 
         #if reward >= 0.7:
             # print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks, reward)
@@ -285,33 +291,44 @@ class PatchedCrafterEnv(embodied.Env):
         return scores
 
     def _update_episode_stats(self, info, key='episode_extra_stats'):
+        # calculating additional metrics        
 
         if self.custom_task == 'data':
+            # Assessment of the completion of necessary tasks
             for achievement in set(self._current_achievement_tasks):
                 key_name = f'log_achievement_{achievement}'
                 info[key][key_name] = self._previous_achievement_count[achievement]
+
             sum_previous_achievement_count = sum(self._previous_achievement_count.values())
+
+            # Evaluation of the reward for test tasks
             info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
             if sum_previous_achievement_count:
                 info[key]['log_achievement_TaskStepsToSuccess'] = self._step
+
+            # Evaluation the completion of the task
             if len(self._current_achievement_task) == 0:
                 info[key]['log_achievement_SuccessRate'] = 1
             else:
                 info[key]['log_achievement_SuccessRate'] = 0
 
         elif self.custom_task == 'dataset' or self.custom_task == 'data+':
-            # print(self.simple_task[self._current_achievement_task])
             if isinstance(self._current_achievement_task, str):
                 achievements = set(self.simple_task[self._current_achievement_task])
             else:
                 achievements = self._current_achievement_task
+            # Assessment of the completion of necessary tasks
             for achievement in achievements:
                 key_name = f'log_achievement_{achievement}'
                 info[key][key_name] = self._previous_achievement_count[achievement]
+
+            # Evaluation of the reward for test tasks
             sum_previous_achievement_count = sum(self._previous_achievement_count.values())
             info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
             if sum_previous_achievement_count:
                 info[key]['log_achievement_TaskStepsToSuccess'] = self._step
+
+            # Evaluation the completion of the task
             if len(self._current_achievement_tasks) == 0:
                 info[key]['log_achievement_SuccessRate'] = 1
             else:
@@ -333,35 +350,46 @@ class PatchedCrafterEnv(embodied.Env):
                 info[key]['Score'] = self._compute_scores(np.array(list(achievements.values())))
 
     def reset(self, *args, **kwargs):
-
+        # The case of working not with a dataset, but with an arbitrary number of simple tasks
         if self.custom_task == 'random':
             number_tasks = random.choice(range(6))
         elif self.custom_task != 'data' and self.custom_task != 'dataset' and self.custom_task != 'data+':
             number_tasks = int(self.custom_task)
-        
+
         if self.custom_task == 'data':
+            # choosing instructions in order and in an arbitrary way
             if self.mode == 'train':
-                self._current_achievement_tasks = random.choice(self._tasks)
+                self.name_task = random.choice(self._tasks)                            # setting the name of the instruction
+                self._current_achievement_tasks = self.simple_task[self.name_task]     # setting current tasks
             else:
-                self._current_achievement_task = self._tasks[self.id_task]
+                self.name_task = self._tasks[self.id_task]                             # setting the name of the instruction
+                self._current_achievement_tasks = self.simple_task[self.name_task]     # setting current tasks
                 self.id_task += 1
 
-            self._current_achievement_task = self._current_achievement_tasks.copy() 
+            self._current_achievement_task = self._current_achievement_tasks.copy()    # setting the current instruction
+
+            # fill in the dictionary with zeros with the current tasks
             self._previous_achievement_count = {}
             for task in set(self._current_achievement_tasks):
                 self._previous_achievement_count[task] = 0
         
         elif self.custom_task == 'dataset' or self.custom_task == 'data+':
+            # choosing instructions in order and in an arbitrary way
             if self.mode == 'train':
-                self._current_achievement_task = random.choice(self._tasks)
+                self.name_task = random.choice(self._tasks)                            # setting the name of the instruction
             else:
-                self._current_achievement_task = self._tasks[self.id_task]
+                self.name_task = self._tasks[self.id_task]                             # setting the name of the instruction
                 self.id_task += 1
 
-            if isinstance(self._current_achievement_task, str):
-                self._current_achievement_tasks = self.simple_task[self._current_achievement_task].copy()
+            # If data+ arbitrarily select a simple instruction or a complex one
+            if self.custom_task == 'dataset' or random.random() >= 0.5:
+                self._current_achievement_task = self.name_task.copy()                  # setting the current instruction
+                self._current_achievement_tasks = self.simple_task[self._current_achievement_task].copy()  # setting current tasks
             else:
-                self._current_achievement_tasks = self._current_achievement_task.copy()
+                self._current_achievement_task = self.simple_task[self.name_task].copy() # setting the current instruction
+                self._current_achievement_tasks = self._current_achievement_task.copy()  # setting current tasks
+
+            # fill in the dictionary with zeros with the current tasks
             self._previous_achievement_count = {}
             for task in set(self._current_achievement_tasks):
                 self._previous_achievement_count[task] = 0
@@ -372,13 +400,14 @@ class PatchedCrafterEnv(embodied.Env):
                         'make_iron_sword', 'make_stone_pickaxe', 'make_stone_sword', 'make_wood_pickaxe',
                         'make_wood_sword', 'wake_up'] + [None] * 5
             if number_tasks > 0:
-                self._current_achievement_tasks = list(np.random.choice(tasks, size=number_tasks))
-                self._current_achievement_task = self._current_achievement_tasks[0]
+                self._current_achievement_tasks = list(np.random.choice(tasks, size=number_tasks))  # setting current tasks
+                self._current_achievement_task = self._current_achievement_tasks[0]                 # setting current task
             else:
                 self._current_achievement_tasks = []
                 self._current_achievement_task = None
             self._previous_achievement_count = 0
 
+        # setting the current task line, tokens, and embeddings
         self._get_and_set_task_embed()
         self._step = 0
 
@@ -391,7 +420,7 @@ class PatchedCrafterEnv(embodied.Env):
             "is_read_step": False
         }
         # print(self.string, self._current_achievement_tasks)
-
+        # print(self.string)
         if self.vis:
             self.prev_action = ""
             augmented_obs["log_image"] = self.render_with_text(augmented_obs["log_language_info"])

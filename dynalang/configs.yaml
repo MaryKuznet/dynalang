@@ -101,6 +101,10 @@ defaults:
     langroom:
       length: 200
       vocab_size: 15
+    textcrafter:
+      mode: 'train'
+      enc: 'old'
+      spec_seed: 'random'
 
   # Agent
   task_behavior: Greedy
@@ -242,8 +246,9 @@ textcrafter:
     log_keys_max: '^log_achievement_.*'
     log_keys_sum: '^log_reward$'
   run.train_ratio: 512
-  encoder: {mlp_keys: '$^', cnn_keys: 'image'}
-  decoder: {mlp_keys: '$^', cnn_keys: 'image'}
+  encoder: {mlp_keys: 'token_embed', cnn_keys: 'image'}
+  decoder: {mlp_keys: 'token_embed', cnn_keys: 'image'}
+
 
 dmc_vision:
 

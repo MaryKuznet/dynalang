@@ -1,10 +1,14 @@
 #! /bin/bash
 
-task=$1
-name=$2
-device=$3
-seed=$4
+type_data=$1
+mode=$2
+enc=$3
+name=$4
+device=$5
+seed=$6
 
+shift
+shift
 shift
 shift
 shift
@@ -14,14 +18,12 @@ export CUDA_VISIBLE_DEVICES=$device; python dynalang/train.py \
   --run.script train \
   --logdir ~/logdir/crafter/$name \
   --use_wandb True \
-  --task textcrafter_$task \
+  --task textcrafter_$type_data\
   --envs.amount 1 \
+  --env.textcrafter.mode $mode \
+  --env.textcrafter.enc $enc \
   --seed $seed \
-  --encoder.mlp_keys token$ \
-  --decoder.mlp_keys token$ \
-  --decoder.vector_dist onehot \
   --batch_size 16 \
   --batch_length 256 \
-  --run.train_ratio 32 \
-  --run.log_keys_max '^log_achievement_.*'\
+  --configs textcrafter \
   "$@"

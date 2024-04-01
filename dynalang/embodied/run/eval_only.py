@@ -105,6 +105,7 @@ def eval_only(agent, env, logger, args):
       logger.add(metrics.result())
       logger.add(timer.stats(), prefix='timer')
       logger.write(fps=True)
-    if count_ep == 800:
+    if count_ep == 200:
+      print('all')
       break
   logger.write()
