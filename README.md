@@ -28,31 +28,22 @@ conda activate dynalang
 Launching experiments in the format:
 
 ```
-sh scripts/run_text_crafter.sh data+_train_new $NAME_OF_EXPERIMENT$ $GPU$ $SEED$
+sh scripts/run_text_crafter.sh $TYPE_of_DATA$ $TYPE_OF_LEARNING$ $TYPE_OF_ENCODER$ $NAME_OF_EXPERIMENT$ $GPU$ $SEED$
 ```
 Example:
 ```
-sh scripts/run_text_crafter.sh data_train_new debug_data 1 2
+sh scripts/run_text_crafter.sh data train old experiment_1 1 2
 ```
-data+_train_new is the mode. The first is the choice of the dataset $data$ – simple tasks, $data+$ - simple tasks mixed with instructions, $dataset$ – only instructions.
-
-There are $train$ and $test$ modes, but test is run using a different script. $new$ and $old$ data encoding modes. $old$ is the old way with t5, $new$ is your new one.
-Thus, there are 6 modes:
-```
-data_train_new
-data+_train_new
-dataset_train_new
-data_train_old
-data+_train_old
-dataset_train_old
-```
+$TYPE_of_DATA$ --- simple instructions (data), complex instructions (dataset) or a mixture of them (data+).
+$TYPE_OF_LEARNING$ --- train or test mode.
+$TYPE_OF_ENCODER$ --- $new$ and $old$ data encoding modes. $old$ is the old way with t5, $new$ is your new one.
 
 ## Starting the test
 The test is run in the format:
 ```
-sh scripts/test_text_crafter.sh data+_test_new $NAME_OF_EXPERIMENT$ $GPU$ $SEED$ $NAME_OF_FOLODER_WITH_WEIGHTS$
+sh scripts/test_text_crafter.sh $TYPE_of_DATA$ $TYPE_OF_LEARNING$ $TYPE_OF_ENCODER$ $SEED_OF_THE_ENVIRONMENT$ $NAME_OF_EXPERIMENT$ $GPU$ $SEED$ $NAME_OF_THE_CHECKPOINT_FOLODER$
 ```
 Example:
 ```
-sh scripts/test_text_crafter.sh data+_test_new debug_test_data+ 1 2 train_dataset_2
+sh scripts/test_text_crafter.sh data test old 1 test_experiment 1 2 experiment_1
 ```

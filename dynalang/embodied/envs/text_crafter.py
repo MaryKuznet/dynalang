@@ -82,10 +82,10 @@ class PatchedCrafterEnv(embodied.Env):
             self.test_info = dict()                                                     # dictionary with data for writing
             # The name of the file for recording test results
             self.name_test_info = 'test_data/info_' + custom_task + '_' + mode + '_' + enc + '_' + spec_seed + '.pkl'              
-            self.len_test = len(self._tasks)                                            # the number of unique instructions in the data
 
 
         self._tasks = list(self.simple_task.keys())                                     # list of possible tasks
+        self.len_test = len(self._tasks)                                                # the number of unique instructions in the data
 
         self.empty_token = self.cache["<pad>"]                                          # embedding an empty token
         self.tokens = [self.empty_token]                                                # list of tokens of the current instruction
@@ -101,14 +101,18 @@ class PatchedCrafterEnv(embodied.Env):
 
 
     def render(self):
-        self._env.render(mode="rgb_array")
+        self._env.render()
     
     def render_with_text(self, text):
         img = self._env.render()
         img = Image.fromarray(img)
         draw = ImageDraw.Draw(img)
-        draw.text((0, 0), text, (0, 0, 0))
-        draw.text((0, 45), "Action: {}".format(self.prev_action), (0, 0, 0))
+        font = ImageFont.load_default(size=10)
+        # font = ImageFont.truetype("Pillow/Tests/fonts/FreeMono.ttf", size=8)
+
+        # draw.text((0, 0), text, fill=(0, 0, 0, 255))
+        draw.text((0, 52), "{}".format(self.prev_action), font=font, fill=(255, 255, 255, 255))
+        draw.text((50, 45), str(self.id_task), font=font, fill=(255, 255, 255, 255))
         img = np.asarray(img)
         return img
 
@@ -383,7 +387,7 @@ class PatchedCrafterEnv(embodied.Env):
 
             # If data+ arbitrarily select a simple instruction or a complex one
             if self.custom_task == 'dataset' or random.random() >= 0.5:
-                self._current_achievement_task = self.name_task.copy()                  # setting the current instruction
+                self._current_achievement_task = self.name_task                # setting the current instruction
                 self._current_achievement_tasks = self.simple_task[self._current_achievement_task].copy()  # setting current tasks
             else:
                 self._current_achievement_task = self.simple_task[self.name_task].copy() # setting the current instruction

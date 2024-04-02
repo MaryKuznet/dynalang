@@ -25,15 +25,21 @@ export CUDA_VISIBLE_DEVICES=$device; python dynalang/train.py \
   --task textcrafter_$type_data \
   --envs.amount 1 \
   --seed $seed \
-  --encoder.mlp_keys token_embed$ \
-  --decoder.mlp_keys token_embed$ \
+  --encoder.mlp_keys token$ \
+  --decoder.mlp_keys token$ \
+  --decoder.vector_dist onehot \
+  --decoder.cnn_keys $^\
+  --encoder.cnn_keys $^\
   --batch_size 16 \
   --batch_length 256 \
+  --run.train_ratio 32 \
+  --run.log_keys_max '^log_achievement_.*'\
   --run.log_every 1\
+  --run.log_keys_video log_image \
   --run.from_checkpoint ~/logdir/crafter/$checkpoint/checkpoint.ckpt \
   --run.save_frames_to ~/logdir/crafter/test_$name \
   --env.textcrafter.mode $mode \
   --env.textcrafter.enc $enc \
   --env.textcrafter.spec_seed $spec_seed \
-  --configs textcrafter \
+  --env.textcrafter.vis True \
   "$@"

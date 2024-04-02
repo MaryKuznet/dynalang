@@ -105,6 +105,7 @@ defaults:
       mode: 'train'
       enc: 'old'
       spec_seed: 'random'
+      vis: False
 
   # Agent
   task_behavior: Greedy
@@ -245,7 +246,7 @@ textcrafter:
   run:
     log_keys_max: '^log_achievement_.*'
     log_keys_sum: '^log_reward$'
-  run.train_ratio: 512
+  run.train_ratio: 32
   encoder: {mlp_keys: 'token_embed', cnn_keys: 'image'}
   decoder: {mlp_keys: 'token_embed', cnn_keys: 'image'}
 
