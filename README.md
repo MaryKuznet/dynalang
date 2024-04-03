@@ -34,9 +34,9 @@ Example:
 ```
 sh scripts/run_text_crafter.sh data train old experiment_1 1 2
 ```
-TYPE_of_DATA --- simple instructions (data), complex instructions (dataset) or a mixture of them (data+).
-TYPE_OF_LEARNING --- train or test mode.
-TYPE_OF_ENCODER --- $new$ and $old$ data encoding modes. "old" is the old way with t5, "new" is your new one.
+TYPE_of_DATA --- simple instructions ("data"), complex instructions ("dataset") or a mixture of them ("data+").
+TYPE_OF_LEARNING --- "train" or "test" mode.
+TYPE_OF_ENCODER --- "new" and "old" data encoding modes. "old" is the old way with t5, "new" is your new one.
 
 ## Starting the test
 The test is run in the format:
