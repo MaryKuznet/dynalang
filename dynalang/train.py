@@ -34,7 +34,12 @@ def main(argv=None):
   args = embodied.Config(
       **config.run, logdir=f"{config.logdir}",
       batch_steps=config.batch_size * config.batch_length)
-  # print(config)
+  if not config.load_model and os.path.exists(config.logdir):
+    print("************")
+    print(f"{config.logdir} exist !!!")
+    print("weights will be loaded automaticly")
+    print("************")
+    assert 1 == 0
 
   logdir = embodied.Path(args.logdir)
   if args.script != 'parallel_env':
@@ -201,10 +206,11 @@ def make_logger(parsed, logdir, step, config):
         wandb_id = wandb.util.generate_id()
         wandb_pa.write(str(wandb_id))
     project = config.task
+    project_env = project.split("_")[0] + "_dynalang"
     wandb.init(
         id=wandb_id,
         resume="allow",
-        project=project,
+        project=project_env,
         name=logdir.name,
         group=logdir.name[:logdir.name.rfind("_")],
         sync_tensorboard=True,

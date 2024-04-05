@@ -25,6 +25,11 @@ conda activate dynalang
 ```
 
 ## Starting the train
+
+```
+sh scripts/run_text_crafter.sh MeduimInstructions_Train_New testing_1 2 43
+```
+
 Launching experiments in the format:
 
 ```

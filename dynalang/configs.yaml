@@ -1,6 +1,7 @@
 defaults:
   use_wandb: True
   debug: False
+  load_model: False
 
   # Trainer
   seed: 0
