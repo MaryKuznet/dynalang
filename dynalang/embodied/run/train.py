@@ -64,6 +64,8 @@ def train(agent, env, replay, logger, args):
         stats[f'mean_{key}'] = ep[key].mean()
       if re.match(args.log_keys_max, key):
         stats[f'max_{key}'] = ep[key].max(0).mean()
+      if re.match(args.log_custom_keys, key):
+        stats[key] = ep[key].max(0).mean()
     metrics.add(stats, prefix='stats')
 
   def count_real_step(tran):

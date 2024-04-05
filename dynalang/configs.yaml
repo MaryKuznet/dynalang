@@ -53,6 +53,7 @@ defaults:
     log_keys_sum: '^$'
     log_keys_mean: '(log_entropy)'
     log_keys_max: '^$'
+    log_custom_keys: '^$'
     log_video_streams: 1
     log_video_timeout: 60
     from_checkpoint: ''

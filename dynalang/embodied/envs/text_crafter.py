@@ -149,6 +149,7 @@ class PatchedCrafterEnv(embodied.Env):
             obs_space[f'log_achievement_{k}'] = spaces.Box(-1, 100, shape=(), dtype=np.uint32)
 
         obs_space['log_achievement_TaskScore'] = spaces.Box(-1, 100, shape=(), dtype=np.uint32)
+        obs_space['log_achievement_each_SuccessRate'] = spaces.Box(-1, 100, shape=(), dtype=np.uint32)
         obs_space['log_achievement_TaskStepsToSuccess'] = spaces.Box(-1, 1000, shape=(), dtype=np.uint32)
         obs_space['log_achievement_SuccessRate'] = spaces.Box(0, 1, shape=(), dtype=np.uint32)
 
@@ -258,13 +259,13 @@ class PatchedCrafterEnv(embodied.Env):
         if done:
             self._update_episode_stats(info)
 
-        # Add metrics
+            # Add metrics
             for key, value in info['episode_extra_stats'].items():
                 augmented_obs[key] = value
                 # print(key, value)
             
             if self.mode == 'Test':
-                self.test_info[augmented_obs['log_language_info']] = self.test_info.get(augmented_obs['log_language_info'], []) + [(augmented_obs['log_achievement_TaskScore'], augmented_obs['log_achievement_SuccessRate'])]
+                self.test_info[augmented_obs['log_language_info']] = self.test_info.get(augmented_obs['log_language_info'], []) + [(augmented_obs['log_achievement_TaskScore'], augmented_obs['log_achievement_SuccessRate'], augmented_obs['log_achievement_each_SuccessRate'])]
 
                 with open(self.name_test_info, 'wb') as f:
                     pickle.dump(self.test_info, f)
@@ -291,12 +292,16 @@ class PatchedCrafterEnv(embodied.Env):
 
     def _update_episode_stats(self, info, key='episode_extra_stats'):
 
+        # test implementation assert 
+        assert len(self._current_achievement_tasks) >= sum(self._previous_achievement_count.values())
+
         if self.dataset_type == 'MediumInstructions':
             for achievement in set(self._current_achievement_tasks):
                 key_name = f'log_achievement_{achievement}'
                 info[key][key_name] = self._previous_achievement_count[achievement]
             sum_previous_achievement_count = sum(self._previous_achievement_count.values())
             info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
+            info[key]['log_achievement_each_SuccessRate'] = sum_previous_achievement_count / len(self._current_achievement_tasks)
             if sum_previous_achievement_count:
                 info[key]['log_achievement_TaskStepsToSuccess'] = self._step
             if len(self._current_achievement_task) == 0:
@@ -315,6 +320,7 @@ class PatchedCrafterEnv(embodied.Env):
                 info[key][key_name] = self._previous_achievement_count[achievement]
             sum_previous_achievement_count = sum(self._previous_achievement_count.values())
             info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
+            info[key]['log_achievement_each_SuccessRate'] = sum_previous_achievement_count / len(self._current_achievement_tasks)
             if sum_previous_achievement_count:
                 info[key]['log_achievement_TaskStepsToSuccess'] = self._step
             if len(self._current_achievement_tasks) == 0:
