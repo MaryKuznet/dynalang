@@ -37,12 +37,12 @@ class PatchedCrafterEnv(embodied.Env):
         self._task_vector_size = 32
         self._subtask_extra_reward = 1.0
 
-        self._current_achievement_task = None
-        self._previous_achievement_count = None
+        self.current_task = None
+        self.unique_episode_achievements_count = None
         self._tasks = None
         self._step = None
 
-        self._current_achievement_tasks = None
+        self.episode_achievements_remained = None
 
         self.wrappers = [
           from_gym.FromGym,
@@ -163,19 +163,19 @@ class PatchedCrafterEnv(embodied.Env):
     def _get_task_vector(self):
         # Create a one-hot encoded vector for the current achievement task
         task_vector = np.zeros(self._task_vector_size, dtype=np.float32)
-        if self._current_achievement_task:
-            task_index = self.achievements_list.index(self._current_achievement_task)
+        if self.current_task:
+            task_index = self.achievements_list.index(self.current_task)
             task_vector[task_index] = 1
         return task_vector
     
     def _get_and_set_task_embed(self):
-        if self._current_achievement_task:
-            if isinstance(self._current_achievement_task, str):
-                self.string = ' '.join(self._current_achievement_task.split('_'))
+        if self.current_task:
+            if isinstance(self.current_task, str):
+                self.string = ' '.join(self.current_task.split('_'))
                 self.tokens = [x for x in self.cache[self.string]]
                 self.token_embeds = [x for x in self.embed_cache[self.string]]
             else:
-                strings = [' '.join(x.split('_')) for x in self._current_achievement_task]
+                strings = [' '.join(x.split('_')) for x in self.current_task]
                 self.string = ' '.join(strings)
                 self.tokens = [x for string in strings for x in self.cache[string]]
                 self.token_embeds = [x for string in strings for x in self.embed_cache[string]]
@@ -194,50 +194,51 @@ class PatchedCrafterEnv(embodied.Env):
         truncated = done if not terminated else False
 
         # Code to handle additional reward for the current achievement task
-        if self._current_achievement_task:
+        if self.current_task:
             if self.dataset_type == 'MediumInstructions':
-                for achievement in self._current_achievement_task:
+                assert self.current_task == self.episode_achievements_remained
+                for achievement in self.current_task:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
-                    if cur_achievement_count > self._previous_achievement_count[achievement]:
+                    if cur_achievement_count > self.unique_episode_achievements_count[achievement]:
                         reward += self._subtask_extra_reward
-                        self._previous_achievement_count[achievement] = cur_achievement_count
+                        self.unique_episode_achievements_count[achievement] = cur_achievement_count
 
-                        self._current_achievement_task.remove(achievement)
-                        if len(self._current_achievement_task) > 0:
+                        self.current_task.remove(achievement)
+                        self.episode_achievements_remained.remove(achievement)
+                        if len(self.current_task) > 0:
                             self._get_and_set_task_embed()
                             self.cur_token = -1
                         else:
                             terminated = True
                         break
 
-            elif  self.dataset_type == 'HardInstructions' or self.dataset_type == 'MixedMediumHardInstructions':
-                for achievement in self._current_achievement_tasks:
+            elif self.dataset_type == 'HardInstructions' or self.dataset_type == 'MixedMediumHardInstructions':
+                for achievement in self.episode_achievements_remained:
                     cur_achievement_count = info['achievements'].get(achievement, 0)
 
-                    if cur_achievement_count > self._previous_achievement_count[achievement]:
-                        # print(achievement)
+                    if cur_achievement_count > self.unique_episode_achievements_count[achievement]:
                         reward += self._subtask_extra_reward
-                        self._previous_achievement_count[achievement] = cur_achievement_count
+                        self.unique_episode_achievements_count[achievement] = cur_achievement_count
 
-                        self._current_achievement_tasks.remove(achievement)
-                        if len(self._current_achievement_tasks) == 0:
+                        self.episode_achievements_remained.remove(achievement)
+                        if len(self.episode_achievements_remained) == 0:
                             terminated = True
                         break
 
             else:
-                cur_achievement_count = info['achievements'].get(self._current_achievement_task, 0)
+                cur_achievement_count = info['achievements'].get(self.current_task, 0)
 
-                if cur_achievement_count > self._previous_achievement_count:
+                if cur_achievement_count > self.unique_episode_achievements_count:
                     reward += self._subtask_extra_reward
-                    self._previous_achievement_count = cur_achievement_count
+                    self.unique_episode_achievements_count = cur_achievement_count
 
-                    self._current_achievement_tasks.pop(0)
-                    if len(self._current_achievement_tasks) > 0:
-                        self._current_achievement_task = self._current_achievement_tasks[0]
+                    self.episode_achievements_remained.pop(0)
+                    if len(self.episode_achievements_remained) > 0:
+                        self.current_task = self.episode_achievements_remained[0]
                         self._get_and_set_task_embed()
                         self.cur_token = -1
-                        self._previous_achievement_count = 0
+                        self.unique_episode_achievements_count = 0
                     else:
                         terminated = True
 
@@ -277,7 +278,7 @@ class PatchedCrafterEnv(embodied.Env):
         # End add metrics
 
         #if reward >= 0.7:
-            # print(self._step, self.string, self.tokens[self.cur_token], self._current_achievement_tasks, reward)
+            # print(self._step, self.string, self.tokens[self.cur_token], self.episode_achievements_remained, reward)
 
         if self.vis:
             self.prev_action = self._env.action_names[action]
@@ -293,48 +294,32 @@ class PatchedCrafterEnv(embodied.Env):
     def _update_episode_stats(self, info, key='episode_extra_stats'):
 
         # test implementation assert 
-        assert len(self._current_achievement_tasks) >= sum(self._previous_achievement_count.values())
+        assert len(self.episode_achievements_all) >= sum(self.unique_episode_achievements_count.values())
 
-        if self.dataset_type == 'MediumInstructions':
-            for achievement in set(self._current_achievement_tasks):
+        if self.dataset_type == 'MediumInstructions' or self.dataset_type == 'HardInstructions':
+            for achievement in set(self.episode_achievements_all):
                 key_name = f'log_achievement_{achievement}'
-                info[key][key_name] = self._previous_achievement_count[achievement]
-            sum_previous_achievement_count = sum(self._previous_achievement_count.values())
-            info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
-            info[key]['log_achievement_each_SuccessRate'] = sum_previous_achievement_count / len(self._current_achievement_tasks)
-            if sum_previous_achievement_count:
+                info[key][key_name] = self.unique_episode_achievements_count[achievement]
+            sumunique_episode_achievements_count = sum(self.unique_episode_achievements_count.values())
+            info[key]['log_achievement_TaskScore'] = sumunique_episode_achievements_count
+            info[key]['log_achievement_each_SuccessRate'] = sumunique_episode_achievements_count / len(self.episode_achievements_all)
+            if sumunique_episode_achievements_count:
                 info[key]['log_achievement_TaskStepsToSuccess'] = self._step
-            if len(self._current_achievement_task) == 0:
+            if len(self.episode_achievements_remained) == 0:
                 info[key]['log_achievement_SuccessRate'] = 1
             else:
                 info[key]['log_achievement_SuccessRate'] = 0
 
-        elif self.dataset_type == 'HardInstructions' or self.dataset_type == 'MixedMediumHardInstructions':
-            # print(self.LLM_discription_of_medium_instuctions[self._current_achievement_task])
-            if isinstance(self._current_achievement_task, str):
-                achievements = set(self.LLM_discription_of_medium_instuctions[self._current_achievement_task])
-            else:
-                achievements = self._current_achievement_task
-            for achievement in achievements:
-                key_name = f'log_achievement_{achievement}'
-                info[key][key_name] = self._previous_achievement_count[achievement]
-            sum_previous_achievement_count = sum(self._previous_achievement_count.values())
-            info[key]['log_achievement_TaskScore'] = sum_previous_achievement_count
-            info[key]['log_achievement_each_SuccessRate'] = sum_previous_achievement_count / len(self._current_achievement_tasks)
-            if sum_previous_achievement_count:
-                info[key]['log_achievement_TaskStepsToSuccess'] = self._step
-            if len(self._current_achievement_tasks) == 0:
-                info[key]['log_achievement_SuccessRate'] = 1
-            else:
-                info[key]['log_achievement_SuccessRate'] = 0
+        elif self.dataset_type == 'MixedMediumHardInstructions':
+            assert 1 == 0 # seems like i should use the same as for HardInstructions
 
         else:
 
-            if self._current_achievement_task:
-                key_name = f'log_achievement_{self._current_achievement_task}'
-                info[key][key_name] = self._previous_achievement_count
-                info[key]['log_achievement_TaskScore'] = self._previous_achievement_count
-                if self._previous_achievement_count:
+            if self.current_task:
+                key_name = f'log_achievement_{self.current_task}'
+                info[key][key_name] = self.unique_episode_achievements_count
+                info[key]['log_achievement_TaskScore'] = self.unique_episode_achievements_count
+                if self.unique_episode_achievements_count:
                     info[key]['log_achievement_TaskStepsToSuccess'] = self._step
             else:
                 achievements = {'Achievements/' + ach: 100.0 if val > 0.0 else 0.0 for ach, val in
@@ -352,30 +337,30 @@ class PatchedCrafterEnv(embodied.Env):
         
         if self.dataset_type == 'MediumInstructions':
             if self.mode == 'Train':
-                self._current_achievement_tasks = random.choice(self._tasks)
+                self.episode_achievements_all = random.choice(self._tasks)
             else:
-                self._current_achievement_task = self._tasks[self.id_task]
+                self.current_task = self._tasks[self.id_task]
                 self.id_task += 1
 
-            self._current_achievement_task = self._current_achievement_tasks.copy() 
-            self._previous_achievement_count = {}
-            for task in set(self._current_achievement_tasks):
-                self._previous_achievement_count[task] = 0
+            self.current_task = self.episode_achievements_all.copy() 
+            assert type(self.current_task) == list
+            self.unique_episode_achievements_count = {}
+            for task in set(self.episode_achievements_all):
+                self.unique_episode_achievements_count[task] = 0
         
         elif self.dataset_type == 'HardInstructions' or self.dataset_type == 'MixedMediumHardInstructions':
             if self.mode == 'Train':
-                self._current_achievement_task = random.choice(self._tasks)
+                self.current_task = random.choice(self._tasks)
             else:
-                self._current_achievement_task = self._tasks[self.id_task]
+                self.current_task = self._tasks[self.id_task]
                 self.id_task += 1
 
-            if isinstance(self._current_achievement_task, str):
-                self._current_achievement_tasks = self.LLM_discription_of_medium_instuctions[self._current_achievement_task].copy()
-            else:
-                self._current_achievement_tasks = self._current_achievement_task.copy()
-            self._previous_achievement_count = {}
-            for task in set(self._current_achievement_tasks):
-                self._previous_achievement_count[task] = 0
+            assert type(self.current_task) == str
+            self.episode_achievements_all = self.LLM_discription_of_medium_instuctions[self.current_task].copy()
+            self.episode_achievements_remained = self.episode_achievements_all.copy()
+            self.unique_episode_achievements_count = {}
+            for task in set(self.episode_achievements_all):
+                self.unique_episode_achievements_count[task] = 0
 
         else:
             tasks = ['collect_coal', 'collect_drink', 'collect_iron', 'collect_sapling', 'collect_stone',
@@ -383,12 +368,12 @@ class PatchedCrafterEnv(embodied.Env):
                         'make_iron_sword', 'make_stone_pickaxe', 'make_stone_sword', 'make_wood_pickaxe',
                         'make_wood_sword', 'wake_up'] + [None] * 5
             if number_tasks > 0:
-                self._current_achievement_tasks = list(np.random.choice(tasks, size=number_tasks))
-                self._current_achievement_task = self._current_achievement_tasks[0]
+                self.episode_achievements_remained = list(np.random.choice(tasks, size=number_tasks))
+                self.current_task = self.episode_achievements_remained[0]
             else:
-                self._current_achievement_tasks = []
-                self._current_achievement_task = None
-            self._previous_achievement_count = 0
+                self.episode_achievements_remained = []
+                self.current_task = None
+            self.unique_episode_achievements_count = 0
 
         self._get_and_set_task_embed()
         self._step = 0
@@ -401,7 +386,6 @@ class PatchedCrafterEnv(embodied.Env):
             'token_embed': self.token_embeds[self.cur_token],
             "is_read_step": False
         }
-        # print(self.string, self._current_achievement_tasks)
 
         if self.vis:
             self.prev_action = ""
