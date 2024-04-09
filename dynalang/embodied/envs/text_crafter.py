@@ -121,7 +121,6 @@ class PatchedCrafterEnv(embodied.Env):
     @property
     def observation_space(self):
 
-        #image = spaces.Box(low=0, high=1, shape=self._size)
         image = spaces.Box(0, 255, tuple(self._size) + (3,), np.uint8)
         log_language_info = spaces.Text(max_length=10000)
         token = spaces.Box(0, 32100, shape=(), dtype=np.uint32)
@@ -171,7 +170,8 @@ class PatchedCrafterEnv(embodied.Env):
     def _get_and_set_task_embed(self):
         if self.current_task:
             if isinstance(self.current_task, str):
-                self.string = ' '.join(self.current_task.split('_'))
+                #self.string = ' '.join(self.current_task.split('_'))
+                self.string = self.current_task
                 self.tokens = [x for x in self.cache[self.string]]
                 self.token_embeds = [x for x in self.embed_cache[self.string]]
             else:

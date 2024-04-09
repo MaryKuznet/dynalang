@@ -61,3 +61,9 @@ Example:
 ```
 sh scripts/test_text_crafter.sh data+_test_new debug_test_data+ 1 2 train_dataset_2
 ```
+
+
+## Add t5 LLM model
+pip install flax
+cd t5-jax
+pip install -r requirements.txt

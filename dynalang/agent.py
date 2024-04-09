@@ -5,6 +5,14 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import ruamel.yaml as yaml
+
+# LLM 
+sys.path.append("t5-jax")
+import numpy as np
+from transformers import AutoTokenizer, FlaxT5ForConditionalGeneration
+from utils.params_utils import init_params_pretrained
+from model.transformer_encoder import fwd_transformer_encoder
+
 tree_map = jax.tree_util.tree_map
 sg = lambda x: tree_map(jax.lax.stop_gradient, x)
 
@@ -138,7 +146,7 @@ class Agent(nj.Module):
     for key, value in obs.items():
       if key.startswith('log_') or key in ('key',):
         continue
-      if key == "token":
+      if not self.config.add_llm_encoder_training and key == "token":
         value = jax.nn.one_hot(value, self.obs_space[key].high)
       elif len(value.shape) > 3 and value.dtype == jnp.uint8:
         value = jaxutils.cast_to_compute(value) / 255.0
@@ -155,8 +163,12 @@ class WorldModel(nj.Module):
     self.obs_space = obs_space
     self.act_space = act_space['action']
     self.config = config
-#    shapes = {k: tuple(v.shape) for k, v in obs_space.items()}
-#    shapes = {k: v for k, v in shapes.items() if not k.startswith('log_')}
+    # LLM
+    if self.config.add_llm_encoder_training:
+      #self.llm_encoder = FlaxT5ForConditionalGeneration.from_pretrained("allenai/unifiedqa-t5-base")
+      #self.llm_encoder = FlaxT5ForConditionalGeneration
+      params = init_params_pretrained()
+      #self.llm_tokenizer = AutoTokenizer.from_pretrained("t5-base")
     self.encoder = nets.MultiEncoder(shapes, **config.encoder, name='enc')
     if self.config.rssm_type == 'rssm':
       self.rssm = nets.RSSM(**config.rssm, name='rssm')
@@ -186,6 +198,8 @@ class WorldModel(nj.Module):
     for key in [x for x in self.config.zero_data_keys if x]:
       data[key] = jnp.zeros_like(data[key])
     modules = [self.encoder, self.rssm, *self.heads.values()]
+    #if self.config.add_llm_encoder_training:
+      #modules.insert(0, self.llm_encoder)
 
     if self.config.skip_mlp_training:
       assert not self.config.skip_cnn_training
@@ -206,6 +220,10 @@ class WorldModel(nj.Module):
     return state, outs, metrics
 
   def loss(self, data, state):
+    if self.config.add_llm_encoder_training:
+      data["llm_output"] = data["token_embed"]
+      #llm_embed = self.llm_encoder(data["token"])
+      #data["llm_output"] = llm_embed
     embed = self.encoder(
       data,
       zero_mlp=self.config.zero_mlp,

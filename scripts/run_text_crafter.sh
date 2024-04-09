@@ -39,5 +39,5 @@ export CUDA_VISIBLE_DEVICES=$device; python dynalang/train.py \
   --run.train_ratio 32 \
   --run.log_custom_keys '^log_achievement_.*'\
   --load_model False \
-  --run.log_every 1000 \
+  --run.log_every 10000 \
   "$@"

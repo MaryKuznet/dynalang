@@ -479,6 +479,10 @@ class MultiEncoder(nj.Module):
         len(v) == 3 and re.match(cnn_keys, k))}
     self.mlp_shapes = {k: v for k, v in shapes.items() if (
         len(v) in (1, 2) and re.match(mlp_keys, k))}
+    if kw["use_llm_output"]:
+      self.mlp_shapes = {"llm_output": (kw["use_llm_output_shape"], )}
+    kw.pop('use_llm_output', None)
+    kw.pop('use_llm_output_shape', None)
     assert not ("token" in self.mlp_shapes and \
                 "token_embed" in self.mlp_shapes), \
       "Probably shouldn't have both token and token_embed, use token$?"
