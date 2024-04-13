@@ -67,3 +67,16 @@ sh scripts/test_text_crafter.sh data+_test_new debug_test_data+ 1 2 train_datase
 pip install flax
 cd t5-jax
 pip install -r requirements.txt
+
+
+## New deps for repo
+conda update python
+
+pip3 install --upgrade jax[cuda11_pip] -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+
+pip install -e .
+
+pip install homegrid
+pip install crafter
+pip install gymnasium
+

@@ -96,8 +96,9 @@ class JAXAgent(embodied.Agent):
       rng = self._next_rngs(self.train_devices)
       state, self.varibs = self._init_train(self.varibs, rng, data['is_first'])
     prev_varibs = self.varibs
-    (outs, state, mets), self.varibs = self._train(
-        self.varibs, rng, data, state)
+    with jax.transfer_guard("allow"):
+      (outs, state, mets), self.varibs = self._train(
+          self.varibs, rng, data, state)
     self.updates.increment()
 
     if not self.single_device:

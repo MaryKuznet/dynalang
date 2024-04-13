@@ -9,7 +9,7 @@ import ruamel.yaml as yaml
 # LLM 
 sys.path.append("t5-jax")
 import numpy as np
-from transformers import AutoTokenizer, FlaxT5ForConditionalGeneration
+from transformers import AutoTokenizer, FlaxT5ForConditionalGeneration, FlaxT5EncoderModel
 from utils.params_utils import init_params_pretrained
 from model.transformer_encoder import fwd_transformer_encoder
 
@@ -165,9 +165,16 @@ class WorldModel(nj.Module):
     self.config = config
     # LLM
     if self.config.add_llm_encoder_training:
+      with jax.transfer_guard("allow"):
+        print("*******")
+        print("initialize LLM")
+        self.llm_encoder = FlaxT5EncoderModel.from_pretrained("t5-small")
+        print("*******")
+      #from transformers import FlaxLlamaModel
+      #model = FlaxLlamaModel.from_pretrained("afmck/testing-llama-tiny")
       #self.llm_encoder = FlaxT5ForConditionalGeneration.from_pretrained("allenai/unifiedqa-t5-base")
       #self.llm_encoder = FlaxT5ForConditionalGeneration
-      params = init_params_pretrained()
+      #params = init_params_pretrained()
       #self.llm_tokenizer = AutoTokenizer.from_pretrained("t5-base")
     self.encoder = nets.MultiEncoder(shapes, **config.encoder, name='enc')
     if self.config.rssm_type == 'rssm':
@@ -221,9 +228,14 @@ class WorldModel(nj.Module):
 
   def loss(self, data, state):
     if self.config.add_llm_encoder_training:
-      data["llm_output"] = data["token_embed"]
-      #llm_embed = self.llm_encoder(data["token"])
-      #data["llm_output"] = llm_embed
+      llm_embed = self.llm_encoder(data["token"]).last_hidden_state
+      data["llm_output"] = llm_embed
+      #print("data[\"token_embed\"]:", data["token_embed"])
+      #print("data[\"llm_output\"]:", data["llm_output"])
+      #print("data[\"token\"]:", data["token"])
+      #print("token_embed:", data["token_embed"].devices())
+      #print("llm_output:", data["llm_output"].device_buffer.device())
+      #assert 1 == 0
     embed = self.encoder(
       data,
       zero_mlp=self.config.zero_mlp,

@@ -296,7 +296,7 @@ class PatchedCrafterEnv(embodied.Env):
         # test implementation assert 
         assert len(self.episode_achievements_all) >= sum(self.unique_episode_achievements_count.values())
 
-        if self.dataset_type == 'MediumInstructions' or self.dataset_type == 'HardInstructions':
+        if self.dataset_type == 'MediumInstructions' or self.dataset_type == 'HardInstructions' or self.dataset_type == 'MixedMediumHardInstructions':
             for achievement in set(self.episode_achievements_all):
                 key_name = f'log_achievement_{achievement}'
                 info[key][key_name] = self.unique_episode_achievements_count[achievement]
@@ -309,10 +309,6 @@ class PatchedCrafterEnv(embodied.Env):
                 info[key]['log_achievement_SuccessRate'] = 1
             else:
                 info[key]['log_achievement_SuccessRate'] = 0
-
-        elif self.dataset_type == 'MixedMediumHardInstructions':
-            assert 1 == 0 # seems like i should use the same as for HardInstructions
-
         else:
 
             if self.current_task:
@@ -337,13 +333,14 @@ class PatchedCrafterEnv(embodied.Env):
         
         if self.dataset_type == 'MediumInstructions':
             if self.mode == 'Train':
-                self.episode_achievements_all = random.choice(self._tasks)
+                self.current_task = random.choice(self._tasks)
             else:
                 self.current_task = self._tasks[self.id_task]
                 self.id_task += 1
 
-            self.current_task = self.episode_achievements_all.copy() 
-            assert type(self.current_task) == list
+            self.episode_achievements_all = self.current_task.copy() 
+            self.episode_achievements_remained = self.episode_achievements_all.copy()
+            assert isinstance(self.current_task, list)
             self.unique_episode_achievements_count = {}
             for task in set(self.episode_achievements_all):
                 self.unique_episode_achievements_count[task] = 0
@@ -355,8 +352,11 @@ class PatchedCrafterEnv(embodied.Env):
                 self.current_task = self._tasks[self.id_task]
                 self.id_task += 1
 
-            assert type(self.current_task) == str
-            self.episode_achievements_all = self.LLM_discription_of_medium_instuctions[self.current_task].copy()
+            if isinstance(self.current_task, str):
+                # if instuction then split it in achievements
+                self.episode_achievements_all = self.LLM_discription_of_medium_instuctions[self.current_task].copy()
+            else:
+                self.episode_achievements_all = self.current_task.copy()
             self.episode_achievements_remained = self.episode_achievements_all.copy()
             self.unique_episode_achievements_count = {}
             for task in set(self.episode_achievements_all):
