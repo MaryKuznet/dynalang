@@ -500,6 +500,7 @@ class MultiEncoder(nj.Module):
     self.preprocessors = {}
 
   def __call__(self, data, zero_mlp=False, zero_cnn=False):
+    print("data:", data.keys())
     some_key, some_shape = list(self.shapes.items())[0]
     batch_dims = data[some_key].shape[:-len(some_shape)]
     data = {

@@ -74,6 +74,10 @@ class Agent(nj.Module):
     self.config.jax.jit and print('Tracing policy function.')
     obs = self.preprocess(obs)
     (prev_latent, prev_action), task_state, expl_state = state
+    if self.config.use_llm_encoder:
+      print("obs token shape:", obs["token"].shape)
+      llm_embed = self.wm.llm_encoder(obs["token"]).last_hidden_state
+      obs["llm_output"] = llm_embed
     embed = self.wm.encoder(obs)
     if self.config.rssm_type == "token":
       latent = self.wm.rssm.obs_step(
@@ -146,7 +150,7 @@ class Agent(nj.Module):
     for key, value in obs.items():
       if key.startswith('log_') or key in ('key',):
         continue
-      if not self.config.add_llm_encoder_training and key == "token":
+      if not self.config.use_llm_encoder and key == "token":
         value = jax.nn.one_hot(value, self.obs_space[key].high)
       elif len(value.shape) > 3 and value.dtype == jnp.uint8:
         value = jaxutils.cast_to_compute(value) / 255.0
@@ -164,7 +168,7 @@ class WorldModel(nj.Module):
     self.act_space = act_space['action']
     self.config = config
     # LLM
-    if self.config.add_llm_encoder_training:
+    if self.config.use_llm_encoder:
       with jax.transfer_guard("allow"):
         print("*******")
         print("initialize LLM")
@@ -205,7 +209,7 @@ class WorldModel(nj.Module):
     for key in [x for x in self.config.zero_data_keys if x]:
       data[key] = jnp.zeros_like(data[key])
     modules = [self.encoder, self.rssm, *self.heads.values()]
-    #if self.config.add_llm_encoder_training:
+    #if self.config.use_llm_encoder:
       #modules.insert(0, self.llm_encoder)
 
     if self.config.skip_mlp_training:
@@ -227,15 +231,9 @@ class WorldModel(nj.Module):
     return state, outs, metrics
 
   def loss(self, data, state):
-    if self.config.add_llm_encoder_training:
+    if self.config.use_llm_encoder:
       llm_embed = self.llm_encoder(data["token"]).last_hidden_state
       data["llm_output"] = llm_embed
-      #print("data[\"token_embed\"]:", data["token_embed"])
-      #print("data[\"llm_output\"]:", data["llm_output"])
-      #print("data[\"token\"]:", data["token"])
-      #print("token_embed:", data["token_embed"].devices())
-      #print("llm_output:", data["llm_output"].device_buffer.device())
-      #assert 1 == 0
     embed = self.encoder(
       data,
       zero_mlp=self.config.zero_mlp,
